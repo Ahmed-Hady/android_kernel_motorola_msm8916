@@ -183,6 +183,14 @@ config CPU_FREQ_DEFAULT_GOV_SMARTMAX
  	help
  	  Use the CPUFreq governor 'smartmax' as default
 
+config CPU_FREQ_GOV_SCARY
+	tristate "'scary' cpufreq governor"
+	depends on CPU_FREQ
+	help
+	  scary - a governor for cabbages
+	  If in doubt, say N.
+
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
