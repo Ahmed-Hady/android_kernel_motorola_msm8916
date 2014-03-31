@@ -517,7 +517,7 @@ static void __build_flow_key(struct flowi4 *fl4, struct sock *sk,
 			   RT_SCOPE_UNIVERSE, prot,
 			   flow_flags,
 			   iph->daddr, iph->saddr, 0, 0,
-			   sk ? sock_i_uid(sk) : 0);
+			   sock_i_uid(sk));
 }
 
 static void build_skb_flow_key(struct flowi4 *fl4, const struct sk_buff *skb,
@@ -546,7 +546,8 @@ static void build_sk_flow_key(struct flowi4 *fl4, struct sock *sk)
 			   RT_CONN_FLAGS(sk), RT_SCOPE_UNIVERSE,
 			   inet->hdrincl ? IPPROTO_RAW : sk->sk_protocol,
 			   inet_sk_flowi_flags(sk),
-			   daddr, inet->inet_saddr, 0, 0, sock_i_uid(sk));
+			   daddr, inet->inet_saddr, 0, 0,
+			   sock_i_uid(sk));
 	rcu_read_unlock();
 }
 
@@ -2298,8 +2299,9 @@ static int rt_fill_info(struct net *net,  __be32 dst, __be32 src,
 	    nla_put_u32(skb, RTA_MARK, fl4->flowi4_mark))
 		goto nla_put_failure;
 
-	if (rt->rt_uid != (uid_t) -1 &&
-	    nla_put_u32(skb, RTA_UID, rt->rt_uid))
+	if (!uid_eq(fl4->flowi4_uid, INVALID_UID) &&
+	    nla_put_u32(skb, RTA_UID,
+			from_kuid_munged(current_user_ns(), fl4->flowi4_uid)))
 		goto nla_put_failure;
 
 	error = rt->dst.error;
@@ -2351,6 +2353,7 @@ static int inet_rtm_getroute(struct sk_buff *in_skb, struct nlmsghdr *nlh)
 	int err;
 	int mark;
 	struct sk_buff *skb;
+	kuid_t uid;
 
 	err = nlmsg_parse(nlh, sizeof(*rtm), tb, RTA_MAX, rtm_ipv4_policy);
 	if (err < 0)
@@ -2378,6 +2381,10 @@ static int inet_rtm_getroute(struct sk_buff *in_skb, struct nlmsghdr *nlh)
 	dst = tb[RTA_DST] ? nla_get_be32(tb[RTA_DST]) : 0;
 	iif = tb[RTA_IIF] ? nla_get_u32(tb[RTA_IIF]) : 0;
 	mark = tb[RTA_MARK] ? nla_get_u32(tb[RTA_MARK]) : 0;
+	if (tb[RTA_UID])
+		uid = make_kuid(current_user_ns(), nla_get_u32(tb[RTA_UID]));
+	else
+		uid = (iif ? INVALID_UID : current_uid());
 
 	memset(&fl4, 0, sizeof(fl4));
 	fl4.daddr = dst;
@@ -2385,6 +2392,7 @@ static int inet_rtm_getroute(struct sk_buff *in_skb, struct nlmsghdr *nlh)
 	fl4.flowi4_tos = rtm->rtm_tos;
 	fl4.flowi4_oif = tb[RTA_OIF] ? nla_get_u32(tb[RTA_OIF]) : 0;
 	fl4.flowi4_mark = mark;
+	fl4.flowi4_uid = uid;
 
 	if (iif) {
 		struct net_device *dev;

@@ -298,6 +298,7 @@ enum rtattr_type_t {
 	RTA_MARK,
 	RTA_UID,
 	RTA_MFC_STATS,
+	RTA_UID,
 	__RTA_MAX
 };
 

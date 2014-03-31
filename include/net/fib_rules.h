@@ -23,8 +23,13 @@ struct fib_rule {
 	struct fib_rule __rcu	*ctarget;
 	char			iifname[IFNAMSIZ];
 	char			oifname[IFNAMSIZ];
+<<<<<<< HEAD
 	uid_t			uid_start;
 	uid_t			uid_end;
+=======
+	kuid_t			uid_start;
+	kuid_t			uid_end;
+>>>>>>> f1b3627... net: core: Support UID-based routing.
 	struct rcu_head		rcu;
 	struct net *		fr_net;
 };
