@@ -24,11 +24,7 @@ struct flowi_common {
 #define FLOWI_FLAG_CAN_SLEEP		0x02
 #define FLOWI_FLAG_KNOWN_NH		0x04
 	__u32	flowic_secid;
-<<<<<<< HEAD
-	uid_t	flowic_uid;
-=======
 	kuid_t	flowic_uid;
->>>>>>> f1b3627... net: core: Support UID-based routing.
 };
 
 union flowi_uli {
@@ -86,11 +82,7 @@ static inline void flowi4_init_output(struct flowi4 *fl4, int oif,
 				      __u8 proto, __u8 flags,
 				      __be32 daddr, __be32 saddr,
 				      __be16 dport, __be16 sport,
-<<<<<<< HEAD
-				      uid_t uid)
-=======
 				      kuid_t uid)
->>>>>>> f1b3627... net: core: Support UID-based routing.
 {
 	fl4->flowi4_oif = oif;
 	fl4->flowi4_iif = 0;
