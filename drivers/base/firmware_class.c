@@ -1189,7 +1189,7 @@ static int _request_firmware(struct fw_desc *desc)
 	if (!desc->firmware_p)
 		return -EINVAL;
 
-	ret = _request_firmware_prepare(&fw, desc);
+	ret = _request_firmware_prepare(&fw, name, device);
 	if (ret <= 0) /* error or already assigned */
 		goto out;
 
