@@ -1223,6 +1223,7 @@ void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 			pdata->set_backlight(pdata, temp);
 			mfd->bl_level = bkl_lvl;
 			mfd->bl_level_scaled = temp;
+			mfd->bl_updated = 1;
 			bl_notify_needed = true;
 		}
 		if (bl_notify_needed)
@@ -1410,6 +1411,7 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 		pr_debug("blank powerdown called. cur mode=%d, req mode=%d\n",
 			cur_power_state, req_power_state);
 		if (mdss_fb_is_power_on(mfd) && mfd->mdp.off_fnc) {
+			int bl_level_old;
 			cur_power_state = mfd->panel_power_state;
 
 			mutex_lock(&mfd->update.lock);
@@ -1427,7 +1429,13 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				if (mfd->disp_thread)
 					mdss_fb_stop_disp_thread(mfd);
 				mutex_lock(&mfd->bl_lock);
+
+				if (mfd->bl_updated)
+					bl_level_old = mfd->bl_level;
+				else
+					bl_level_old = mfd->unset_bl_level;
 				mdss_fb_set_backlight(mfd, 0);
+				mfd->unset_bl_level = bl_level_old;
 				mfd->bl_updated = 0;
 				mutex_unlock(&mfd->bl_lock);
 			}
