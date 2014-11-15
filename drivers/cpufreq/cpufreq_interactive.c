@@ -401,7 +401,6 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int loadadjfreq;
 	unsigned int index;
 	unsigned long flags;
-	bool boosted;
 	struct cpufreq_govinfo int_info;
 
 	if (!down_read_trylock(&pcpu->enable_sem))
@@ -450,7 +449,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 					CPUFREQ_LOAD_CHANGE, &int_info);
 
 	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
-	cpu_load = loadadjfreq / pcpu->target_freq;
+	cpu_load = loadadjfreq / pcpu->policy->cur;
 	tunables->boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
 
 	if (cpu_load >= tunables->go_hispeed_load || tunables->boosted) {
