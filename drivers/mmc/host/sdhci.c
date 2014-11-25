@@ -3589,7 +3589,6 @@ static void sdhci_set_pmqos_req_type(struct sdhci_host *host)
 		if (host_qos[i].pm_qos_req_dma.type == PM_QOS_REQ_AFFINE_IRQ)
 			host_qos[i].pm_qos_req_dma.irq = host->irq;
 	}
-
 }
 #else
 static void sdhci_set_pmqos_req_type(struct sdhci_host *host)

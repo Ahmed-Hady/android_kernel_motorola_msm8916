@@ -1824,6 +1824,8 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 	if (of_property_read_bool(np, "qcom,wakeup-on-idle"))
 		host->mmc->wakeup_on_idle = true;
 
+	sdhci_msm_populate_affinity(pdata, np);
+
 	if (of_get_property(np, "qcom,emmc", NULL))
 		pdata->is_emmc = true;
 
@@ -3957,6 +3959,10 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 
 	host->cpu_dma_latency_us = msm_host->pdata->cpu_dma_latency_us;
 	host->pm_qos_req_dma.type = msm_host->pdata->cpu_affinity_type;
+	if (host->pm_qos_req_dma.type == PM_QOS_REQ_AFFINE_CORES)
+		bitmap_copy(cpumask_bits(&host->pm_qos_req_dma.cpus_affine),
+			    cpumask_bits(&msm_host->pdata->cpu_affinity_mask),
+			    nr_cpumask_bits);
 
 	init_completion(&msm_host->pwr_irq_completion);
 
