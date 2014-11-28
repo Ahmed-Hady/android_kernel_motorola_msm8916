@@ -287,6 +287,11 @@ struct sdhci_host {
 	unsigned int pm_qos_dbg_tracer;         /* dbg tracer for PM QoS request */
 	struct device_attribute pm_qos_dbg;
 	struct delayed_work pm_qos_work;
+	unsigned int *cpu_dma_latency_us;
+	unsigned int cpu_dma_latency_tbl_sz;
+	struct pm_qos_request pm_qos_req_dma;
+	unsigned int pm_qos_timeout_us;         /* timeout for PM QoS request */
+	struct device_attribute pm_qos_tout;
 
 	struct sdhci_next next_data;
 	ktime_t data_start_time;
