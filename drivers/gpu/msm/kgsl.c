@@ -1636,13 +1636,22 @@ static void _kgsl_cmdbatch_timer(unsigned long data)
 	set_bit(CMDBATCH_FLAG_FENCE_LOG, &cmdbatch->priv);
 	kgsl_context_dump(cmdbatch->context);
 	clear_bit(CMDBATCH_FLAG_FENCE_LOG, &cmdbatch->priv);
-
-	spin_lock(&cmdbatch->lock);
-	/* Print all the fences */
-	list_for_each_entry(event, &cmdbatch->synclist, node) {
-			if (KGSL_CMD_SYNCPOINT_TYPE_FENCE == event->type &&
-					event->handle && event->handle->fence)
-					kgsl_sync_fence_log(event->handle->fence);
+			dev_err(device->dev,
+				"  [timestamp] context %d timestamp %d (retired %d)\n",
+				event->context->id, event->timestamp, retired);
+			break;
+		}
+		case KGSL_CMD_SYNCPOINT_TYPE_FENCE:
+			if (event->handle && event->handle->fence) {
+				set_bit(CMDBATCH_FLAG_FENCE_LOG,
+					&cmdbatch->priv);
+				kgsl_sync_fence_log(event->handle->fence);
+				clear_bit(CMDBATCH_FLAG_FENCE_LOG,
+					&cmdbatch->priv);
+			} else
+				dev_err(device->dev, "  fence: invalid\n");
+			break;
+		}
 	}
 	spin_unlock(&cmdbatch->lock);
 	clear_bit(ADRENO_CONTEXT_CMDBATCH_FLAG_FENCE_LOG,
