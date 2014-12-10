@@ -809,7 +809,6 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	if (cell_index > fbi_list_index)
 		return -EPROBE_DEFER;
 
-
 	/*
 	 * alloc framebuffer info + par data
 	 */
