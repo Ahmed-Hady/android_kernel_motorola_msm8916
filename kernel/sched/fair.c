@@ -2305,6 +2305,8 @@ int sched_hmp_proc_update_handler(struct ctl_table *table, int write,
 
 	old_val = *data;
 
+	unsigned int old_val = *data;
+
 	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 
 	if (ret || !write || !sched_enable_hmp)
@@ -2330,6 +2332,31 @@ int sched_hmp_proc_update_handler(struct ctl_table *table, int write,
 			*data = old_val;
 			ret = -EINVAL;
 			goto done;
+		}
+=======
+		return 0;
+
+	if ((sysctl_sched_downmigrate_pct > sysctl_sched_upmigrate_pct) ||
+				*data > 100) {
+		*data = old_val;
+		return -EINVAL;
+>>>>>>> sched: Prevent race conditions where upmigrate_min_nice changes.
+	}
+
+	if (data == (unsigned int *)&sysctl_sched_upmigrate_min_nice)
+		update_min_nice = 1;
+
+	if (update_min_nice) {
+		if ((*(int *)data) < -20 || (*(int *)data) > 19) {
+			*data = old_val;
+			return -EINVAL;
+		}
+	} else {
+		/* all tunables other than min_nice are in percentage */
+		if (sysctl_sched_downmigrate_pct >
+		    sysctl_sched_upmigrate_pct || *data > 100) {
+			*data = old_val;
+			return -EINVAL;
 		}
 	}
 
