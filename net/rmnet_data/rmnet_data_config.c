@@ -1133,6 +1133,7 @@ static void rmnet_force_unassociate_device(struct net_device *dev)
 	}
 
 	trace_rmnet_unregister_cb_clear_vnds(dev);
+
 	vnd_work = (struct rmnet_free_vnd_work *)
 		kmalloc(sizeof(struct rmnet_free_vnd_work), GFP_KERNEL);
 	if (!vnd_work) {
