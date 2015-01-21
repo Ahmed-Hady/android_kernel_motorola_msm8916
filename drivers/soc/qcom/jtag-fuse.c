@@ -67,6 +67,7 @@
 struct fuse_drvdata {
 	void __iomem		*base;
 	struct device		*dev;
+	bool			fuse_v2;
 	bool			fuse_v3;
 };
 
@@ -106,6 +107,19 @@ bool msm_jtag_fuse_apps_access_disabled(void)
 			ret = true;
 		else if (config1 & DAP_DEVICEEN_DISABLE_V3)
 			ret = true;
+	} else if (drvdata->fuse_v2) {
+		if (config1 & ALL_DEBUG_DISABLE_V2)
+			ret = true;
+		else if (config1 & APPS_DBGEN_DISABLE_V2)
+			ret = true;
+		else if (config1 & APPS_NIDEN_DISABLE_V2)
+			ret = true;
+		else if (config1 & APPS_SPIDEN_DISABLE_V2)
+			ret = true;
+		else if (config1 & APPS_SPNIDEN_DISABLE_V2)
+			ret = true;
+		else if (config1 & DAP_DEVICEEN_DISABLE_V2)
+			ret = true;
 	} else {
 		if (config0 & ALL_DEBUG_DISABLE)
 			ret = true;
@@ -130,6 +144,7 @@ EXPORT_SYMBOL(msm_jtag_fuse_apps_access_disabled);
 
 static struct of_device_id jtag_fuse_match[] = {
 	{.compatible = JTAG_FUSE_VERSION_V1 },
+	{.compatible = JTAG_FUSE_VERSION_V2 },
 	{.compatible = JTAG_FUSE_VERSION_V3 },
 	{}
 };
@@ -153,7 +168,9 @@ static int jtag_fuse_probe(struct platform_device *pdev)
 	if (!match)
 		return -EINVAL;
 
-	if (!strcmp(match->compatible, JTAG_FUSE_VERSION_V3))
+	if (!strcmp(match->compatible, JTAG_FUSE_VERSION_V2))
+		drvdata->fuse_v2 = true;
+	else if (!strcmp(match->compatible, JTAG_FUSE_VERSION_V3))
 		drvdata->fuse_v3 = true;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "fuse-base");
