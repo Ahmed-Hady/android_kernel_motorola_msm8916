@@ -2959,7 +2959,7 @@ static int mdss_fb_check_var(struct fb_var_screeninfo *var,
 		int rc;
 
 		memcpy(&mfd->reconfig_panel_info, mfd->panel_info,
-			sizeof(mfd->reconfig_panel_info));
+				sizeof(mfd->reconfig_panel_info));
 		mdss_fb_var_to_panelinfo(var, &mfd->reconfig_panel_info);
 		rc = mdss_fb_send_panel_event(mfd, MDSS_EVENT_CHECK_PARAMS,
 			&mfd->reconfig_panel_info);
