@@ -270,6 +270,7 @@ enum usb_ctrl {
 		allowing VDDmin without putting PHY into retention.
  * @usb_id_gpio: Gpio used for USB ID detection.
  * @bool phy_dvdd_always_on: PHY DVDD is supplied by always on PMIC LDO.
+ * @bool id_v_meas: If usb id voltage can be measured via ADC.
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
@@ -303,6 +304,7 @@ struct msm_otg_platform_data {
 	int usb_id_gpio;
 	bool phy_dvdd_always_on;
 	struct clk *system_clk;
+	bool id_v_meas;
 };
 
 /* phy related flags */
