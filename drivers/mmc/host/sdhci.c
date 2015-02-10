@@ -1556,15 +1556,13 @@ static void sdhci_pm_qos_remove_work(struct work_struct *work)
 	struct sdhci_host_qos *host_qos = host->host_qos;
 	int vote;
 
-	if (unlikely(host->last_qos_policy == -EINVAL)) {
-		WARN_ONCE(1, "Invalid qos policy (%d)\n",
-				host->last_qos_policy);
-		return;
-	}
 	vote = host->last_qos_policy;
 
 	if (unlikely(!host_qos[vote].cpu_dma_latency_us))
 		return;
+
+	if (host->last_qos_policy == -EINVAL)
+		BUG();
 
 	pm_qos_update_request(&(host_qos[vote].pm_qos_req_dma),
 				PM_QOS_DEFAULT_VALUE);
@@ -1613,11 +1611,6 @@ static void sdhci_update_pm_qos(struct mmc_host *mmc, struct mmc_request *mrq,
 
 	vote = sdhci_get_host_qos_index(mmc, mrq);
 
-	if (unlikely(vote == -1)) {
-		WARN("%s: invalid SDHCI vote type (%d)\n",
-				mmc_hostname(mmc), vote);
-		goto out;
-	}
 	if (unlikely(!host_qos[vote].cpu_dma_latency_us))
 		goto out;
 
@@ -1674,18 +1667,7 @@ out:
 static int sdhci_enable(struct mmc_host *mmc)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
-	u32 pol_index = 0;
 
-	if (unlikely(!host->cpu_dma_latency_us))
-		goto platform_bus_vote;
-
-	if (host->cpu_dma_latency_tbl_sz > 1)
-		pol_index = host->power_policy;
-
-	pm_qos_update_request(&host->pm_qos_req_dma,
-		host->cpu_dma_latency_us[pol_index]);
-
-platform_bus_vote:
 	if (host->ops->platform_bus_voting)
 		host->ops->platform_bus_voting(host, 1);
 
@@ -1695,29 +1677,7 @@ platform_bus_vote:
 static int sdhci_disable(struct mmc_host *mmc)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
-	u32 pol_index = 0;
 
-	if (unlikely(!host->cpu_dma_latency_us))
-		goto platform_bus_vote;
-
-	if (host->cpu_dma_latency_tbl_sz > 1)
-		pol_index = host->power_policy;
-	/*
-	 * In performance mode, release QoS vote after a timeout to
-	 * make sure back-to-back requests don't suffer from latencies
-	 * that are involved to wake CPU from low power modes in cases
-	 * where the CPU goes into low power mode as soon as QoS vote is
-	 * released.
-	 */
-	if (host->power_policy == SDHCI_POWER_SAVE_MODE)
-		pm_qos_update_request(&host->pm_qos_req_dma,
-			PM_QOS_DEFAULT_VALUE);
-	else
-		pm_qos_update_request_timeout(&host->pm_qos_req_dma,
-			host->cpu_dma_latency_us[pol_index],
-			host->pm_qos_timeout_us);
-
-platform_bus_vote:
 	if (host->ops->platform_bus_voting)
 		host->ops->platform_bus_voting(host, 0);
 

@@ -1525,11 +1525,11 @@ static void sdhci_msm_populate_affinity(struct sdhci_msm_pltfm_data *pdata,
 	u32 cpu_mask;
 
 	pdata->cpu_affinity_type = PM_QOS_REQ_AFFINE_IRQ;
-	if (!of_property_read_string(np, "qcom,cpu-affinity", &cpu_affinity)) {
+	if (!of_property_read_string(np, qos_affinity_name, &cpu_affinity)) {
 		if (!strcmp(cpu_affinity, "all_cores"))
 			pdata->cpu_affinity_type = PM_QOS_REQ_ALL_CORES;
 		else if (!strcmp(cpu_affinity, "affine_cores") &&
-			 !of_property_read_u32(np, "qcom,cpu-affinity-mask",
+			 !of_property_read_u32(np, qos_affinity_mask,
 						&cpu_mask)) {
 				cpumask_bits(&pdata->cpu_affinity_mask)[0] =
 					cpu_mask;
@@ -1584,6 +1584,7 @@ static int sdhci_msm_populate_qos(struct device *dev,
 		struct sdhci_host *host)
 {
 	struct device_node *np = dev->of_node;
+	u32 drv_types = 0;
 	u32 prop_val = 0;
 	bool skip_qos_from_dt = false;
 	int qos_planes = 0, i;
@@ -1606,10 +1607,29 @@ static int sdhci_msm_populate_qos(struct device *dev,
 	if (qos_planes > SDHCI_QOS_MAX_POLICY)
 		goto out;
 
+	of_property_read_u32(np, "qcom,drv-types", &drv_types);
+#if defined(CONFIG_MMC_SDHCI_MSM_DEBUG)
+	if (debug_drv_types)
+		drv_types = debug_drv_types;
+#endif
+	if (drv_types) {
+		if (drv_types & MMC_DRIVER_TYPE_1)
+			pdata->caps |= MMC_CAP_DRIVER_TYPE_A;
+		if (drv_types & MMC_DRIVER_TYPE_2)
+			pdata->caps |= MMC_CAP_DRIVER_TYPE_C;
+		if (drv_types & MMC_DRIVER_TYPE_3)
+			pdata->caps |= MMC_CAP_DRIVER_TYPE_D;
+		if (drv_types & MMC_DRIVER_TYPE_4)
+			pdata->caps2 |= MMC_CAP2_DRIVER_TYPE_4;
+
+		/* More caps bits may be set by sdhci, so don't forget. */
+		pdata->drv_types = drv_types;
+	}
+
 	for (i = 0; i < qos_planes; i++) {
 		if (of_get_property(np, qos_planes_name[i],
 					&prop_val)) {
-
+					
 			pdata->cpu_dma_latency_tbl_sz =
 				prop_val/sizeof(*pdata->cpu_dma_latency_us);
 
@@ -1665,13 +1685,10 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 	struct sdhci_msm_pltfm_data *pdata = NULL;
 	struct device_node *np = dev->of_node;
 	u32 bus_width = 0;
-	u32 drv_types = 0;
-	u32 prop_val = 0;
 	int len, i, mpm_int;
 	int clk_table_len;
 	u32 *clk_table = NULL;
 	enum of_gpio_flags flags = OF_GPIO_ACTIVE_LOW;
-	bool skip_qos_from_dt = false;
 
 	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata) {
@@ -1694,71 +1711,6 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 	}
 	if (sdhci_msm_populate_qos(dev, pdata, host))
 		goto out;
-
-	of_property_read_u32(np, "qcom,drv-types", &drv_types);
-#if defined(CONFIG_MMC_SDHCI_MSM_DEBUG)
-	if (debug_drv_types)
-		drv_types = debug_drv_types;
-#endif
-	if (drv_types) {
-		if (drv_types & MMC_DRIVER_TYPE_1)
-			pdata->caps |= MMC_CAP_DRIVER_TYPE_A;
-		if (drv_types & MMC_DRIVER_TYPE_2)
-			pdata->caps |= MMC_CAP_DRIVER_TYPE_C;
-		if (drv_types & MMC_DRIVER_TYPE_3)
-			pdata->caps |= MMC_CAP_DRIVER_TYPE_D;
-		if (drv_types & MMC_DRIVER_TYPE_4)
-			pdata->caps2 |= MMC_CAP2_DRIVER_TYPE_4;
-
-		/* More caps bits may be set by sdhci, so don't forget. */
-		pdata->drv_types = drv_types;
-	}
-
-	if (of_get_property(np, "qcom,cpu-dma-latency-us",
-				&prop_val)) {
-
-		pdata->cpu_dma_latency_tbl_sz =
-			prop_val/sizeof(*pdata->cpu_dma_latency_us);
-
-		if (!(pdata->cpu_dma_latency_tbl_sz == 1 ||
-			pdata->cpu_dma_latency_tbl_sz == 3)) {
-			dev_warn(dev, "incorrect Qos param passed from DT: %d\n",
-				pdata->cpu_dma_latency_tbl_sz);
-			skip_qos_from_dt = true;
-		} else {
-			pdata->cpu_dma_latency_us = devm_kzalloc(dev,
-				sizeof(*pdata->cpu_dma_latency_us) *
-				pdata->cpu_dma_latency_tbl_sz,
-				GFP_KERNEL);
-			if (!pdata->cpu_dma_latency_us) {
-				dev_err(dev, "No memory for cpu_dma_latency_us\n");
-				goto out;
-			}
-			if (of_property_read_u32_array(np,
-					"qcom,cpu-dma-latency-us",
-					pdata->cpu_dma_latency_us,
-					pdata->cpu_dma_latency_tbl_sz)) {
-				dev_err(dev, "failed to parse cpu-dma-latency\n");
-				goto out;
-			}
-		}
-	} else {
-		dev_info(dev, "no qcom,cpu-dma-latency-us found\n");
-		skip_qos_from_dt = true;
-	}
-
-	if (skip_qos_from_dt) {
-		pdata->cpu_dma_latency_tbl_sz = 1;
-		pdata->cpu_dma_latency_us = devm_kzalloc(dev,
-			sizeof(*pdata->cpu_dma_latency_us) *
-			pdata->cpu_dma_latency_tbl_sz,
-			GFP_KERNEL);
-		if (!pdata->cpu_dma_latency_us) {
-			dev_err(dev, "No memory for cpu_dma_latency_us\n");
-			goto out;
-		}
-		pdata->cpu_dma_latency_us[0] = MSM_MMC_DEFAULT_CPU_DMA_LATENCY;
-	}
 
 	if (sdhci_msm_dt_get_array(dev, "qcom,clk-rates",
 			&clk_table, &clk_table_len, 0)) {
@@ -1862,8 +1814,6 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 		pdata->mpm_sdiowakeup_int = mpm_int;
 	else
 		pdata->mpm_sdiowakeup_int = -1;
-
-	sdhci_msm_populate_affinity(pdata, np);
 
 	if (of_get_property(np, "qcom,emmc", NULL))
 		pdata->is_emmc = true;
@@ -3954,14 +3904,6 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		sdhci_caps |= ((host_version & 0xFF) << 24);
 		sdhci_writel(host, sdhci_caps, CORE_VENDOR_SPEC_CAPABILITIES1);
 	}
-
-	host->cpu_dma_latency_us = msm_host->pdata->cpu_dma_latency_us;
-	host->cpu_dma_latency_tbl_sz = msm_host->pdata->cpu_dma_latency_tbl_sz;
-	host->pm_qos_req_dma.type = msm_host->pdata->cpu_affinity_type;
-	if (host->pm_qos_req_dma.type == PM_QOS_REQ_AFFINE_CORES)
-		bitmap_copy(cpumask_bits(&host->pm_qos_req_dma.cpus_affine),
-			    cpumask_bits(&msm_host->pdata->cpu_affinity_mask),
-			    nr_cpumask_bits);
 
 	init_completion(&msm_host->pwr_irq_completion);
 
