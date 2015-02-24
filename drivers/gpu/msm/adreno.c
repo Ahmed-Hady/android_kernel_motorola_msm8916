@@ -1106,6 +1106,7 @@ static int adreno_init(struct kgsl_device *device)
 	/* Initialize coresight for the target */
 	adreno_coresight_init(adreno_dev);
 
+	kgsl_pwrctrl_change_state(device, KGSL_STATE_INIT);
 	/*
 	 * Check if firmware supports the sync lock PM4 packets needed
 	 * for IOMMUv1
