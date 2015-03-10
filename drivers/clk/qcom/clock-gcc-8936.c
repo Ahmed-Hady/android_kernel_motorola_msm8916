@@ -3350,6 +3350,14 @@ static struct clk_lookup msm_clocks_lookup_v3[] = {
 	CLK_LIST(gcc_oxili_gmem_gate_clk),
 };
 
+static struct clk_lookup msm_clocks_lookup_v1[] = {
+	CLK_LIST(gcc_oxili_gmem_clk),
+};
+
+static struct clk_lookup msm_clocks_lookup_v3[] = {
+	CLK_LIST(gcc_oxili_gmem_gate_clk),
+};
+
 /* Please note that the order of reg-names is important */
 static int get_memory(struct platform_device *pdev)
 {
@@ -3499,9 +3507,6 @@ static int msm_gcc_probe(struct platform_device *pdev)
 
 	clk_set_rate(&apss_ahb_clk_src.c, 19200000);
 	clk_prepare_enable(&apss_ahb_clk_src.c);
-
-	if (compat_bin)
-		gcc_bimc_gfx_clk.c.depends = NULL;
 
 	dev_info(&pdev->dev, "Registered GCC clocks\n");
 
