@@ -43,6 +43,7 @@ cpumask_t l1_l2_offline_mask;
 cpumask_t offline_mask;
 struct resource *l1_l2_gcc_res;
 uint32_t l2_status = -1;
+static bool lpm_wa_cx_turbo_unvote;
 
 static int lpm_wa_callback(struct notifier_block *cpu_nb,
 	unsigned long action, void *hcpu)
@@ -77,6 +78,13 @@ static int lpm_wa_callback(struct notifier_block *cpu_nb,
 static struct notifier_block __refdata lpm_wa_nblk = {
 	.notifier_call = lpm_wa_callback,
 };
+
+bool lpm_wa_get_skip_l2_spm(void)
+{
+	return skip_l2_spm;
+}
+EXPORT_SYMBOL(lpm_wa_get_skip_l2_spm);
+
 
 static void process_lpm_workarounds(struct work_struct *w)
 {

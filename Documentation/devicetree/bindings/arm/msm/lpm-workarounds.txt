@@ -26,6 +26,7 @@ The optional properties are:
 	based on the L2 mode flag passed. Set lpm-wa-skip-l2-spm node if this
 	is required.
 
+<<<<<<< d74d3eb3f401cb24d25ba81c062469d16459a7b9
 - qcom,lpm-wa-dynamic-clock-gating: Due to a hardware bug on 8952, L1/L2 dynamic
 	clock gating needs to be enabled by software for performance cluster
 	cores and L2. Set lpm-wa-dynamic-clock-gating node if this workaround is
@@ -39,6 +40,8 @@ The optional properties are:
 
 - qcom,l1_l2_gcc_secure: indicates L1/L2 clock enabling register is secure.
 
+=======
+>>>>>>> cpuidle: lpm-workarounds: Skip L2 spm enabling in HLOS
 Example:
 
 qcom,lpm-workarounds {
@@ -49,7 +52,10 @@ qcom,lpm-workarounds {
 	lpm-cx-supply = <&pm8916_s2_corner>;
 	qcom,lpm-wa-cx-turbo-unvote;
 	qcom,lpm-wa-skip-l2-spm;
+<<<<<<< d74d3eb3f401cb24d25ba81c062469d16459a7b9
 	qcom,lpm-wa-dynamic-clock-gating;
 	qcom,cpu-offline-mask = "0xF";
 	qcom,non-boot-cpu-index = <4>;
+=======
+>>>>>>> cpuidle: lpm-workarounds: Skip L2 spm enabling in HLOS
 }
