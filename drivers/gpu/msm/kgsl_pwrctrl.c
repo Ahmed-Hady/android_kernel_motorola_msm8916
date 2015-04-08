@@ -1598,7 +1598,9 @@ static int _init(struct kgsl_device *device)
 		kgsl_pwrctrl_set_state(device, KGSL_STATE_INIT);
 	}
 
-	return status;
+	kgsl_pwrscale_sleep(device);
+	kgsl_pwrctrl_set_state(device, KGSL_STATE_INIT);
+	return 0;
 }
 
 /**
