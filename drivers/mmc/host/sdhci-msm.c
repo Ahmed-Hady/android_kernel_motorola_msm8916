@@ -3475,6 +3475,48 @@ static void sdhci_msm_debugfs_init(struct sdhci_msm_host *msm_host) {}
 static void sdhci_msm_debugfs_remove(struct sdhci_msm_host *msm_host) {}
 #endif
 
+void sdhci_msm_reset_workaround(struct sdhci_host *host, u32 enable)
+{
+	u32 vendor_func2;
+	unsigned long timeout;
+
+	vendor_func2 = readl_relaxed(host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
+
+	if (enable) {
+		writel_relaxed(vendor_func2 | HC_SW_RST_REQ, host->ioaddr +
+				CORE_VENDOR_SPEC_FUNC2);
+		timeout = 10000;
+		while (readl_relaxed(host->ioaddr + CORE_VENDOR_SPEC_FUNC2) &
+				HC_SW_RST_REQ) {
+			if (timeout == 0) {
+				pr_info("%s: Applying wait idle disable workaround\n",
+					mmc_hostname(host->mmc));
+				/*
+				 * Apply the reset workaround to not wait for
+				 * pending data transfers on AXI before
+				 * resetting the controller. This could be
+				 * risky if the transfers were stuck on the
+				 * AXI bus.
+				 */
+				vendor_func2 = readl_relaxed(host->ioaddr +
+						CORE_VENDOR_SPEC_FUNC2);
+				writel_relaxed(vendor_func2 |
+					HC_SW_RST_WAIT_IDLE_DIS,
+					host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
+				host->reset_wa_t = ktime_get();
+				return;
+			}
+			timeout--;
+			udelay(10);
+		}
+		pr_info("%s: waiting for SW_RST_REQ is successful\n",
+				mmc_hostname(host->mmc));
+	} else {
+		writel_relaxed(vendor_func2 & ~HC_SW_RST_WAIT_IDLE_DIS,
+				host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
+	}
+}
+
 static struct sdhci_ops sdhci_msm_ops = {
 	.set_uhs_signaling = sdhci_msm_set_uhs_signaling,
 	.check_power_status = sdhci_msm_check_power_status,
@@ -3587,6 +3629,11 @@ static void sdhci_set_default_hw_caps(struct sdhci_msm_host *msm_host,
 	caps = readl_relaxed(host->ioaddr + SDHCI_CAPABILITIES);
 	caps &= ~CORE_SYS_BUS_SUPPORT_64_BIT;
 	writel_relaxed(caps, host->ioaddr + CORE_VENDOR_SPEC_CAPABILITIES0);
+	/* enable the quirk SDHCI_QUIRK2_USE_RESET_WORKAROUND */
+	host->quirks2 |= SDHCI_QUIRK2_USE_RESET_WORKAROUND;
+	val = readl_relaxed(host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
+	writel_relaxed((val | CORE_ONE_MID_EN),
+		host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
 }
 
 static int sdhci_msm_probe(struct platform_device *pdev)
