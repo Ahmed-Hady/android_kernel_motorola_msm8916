@@ -56,7 +56,6 @@ static int lpm_wa_callback(struct notifier_block *cpu_nb,
 	if (cpu >= non_boot_cpu_index)
 		return NOTIFY_OK;
 
-
 	switch (action & ~CPU_TASKS_FROZEN) {
 	case CPU_POST_DEAD:
 		cpumask_set_cpu(cpu, &offline_mask);
@@ -78,13 +77,6 @@ static int lpm_wa_callback(struct notifier_block *cpu_nb,
 static struct notifier_block __refdata lpm_wa_nblk = {
 	.notifier_call = lpm_wa_callback,
 };
-
-bool lpm_wa_get_skip_l2_spm(void)
-{
-	return skip_l2_spm;
-}
-EXPORT_SYMBOL(lpm_wa_get_skip_l2_spm);
-
 
 static void process_lpm_workarounds(struct work_struct *w)
 {
@@ -152,7 +144,7 @@ static ssize_t store_clock_gating_enabled(struct kobject *kobj,
 	int ret = 0, val = 0;
 
 	ret = kstrtoint(buf, 10, &val);
-	if (ret || !enable_dynamic_clock_gating) {
+	if (ret) {
 		pr_err("Invalid input%s %s. err:%d\n", __func__, buf, ret);
 		return count;
 	}
