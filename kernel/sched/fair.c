@@ -2333,14 +2333,6 @@ int sched_hmp_proc_update_handler(struct ctl_table *table, int write,
 			ret = -EINVAL;
 			goto done;
 		}
-=======
-		return 0;
-
-	if ((sysctl_sched_downmigrate_pct > sysctl_sched_upmigrate_pct) ||
-				*data > 100) {
-		*data = old_val;
-		return -EINVAL;
->>>>>>> sched: Prevent race conditions where upmigrate_min_nice changes.
 	}
 
 	if (data == (unsigned int *)&sysctl_sched_upmigrate_min_nice)
