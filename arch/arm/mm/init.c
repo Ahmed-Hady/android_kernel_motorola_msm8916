@@ -631,6 +631,20 @@ static void __init free_highpages(void)
 #define MLK_ROUNDUP(b, t) b, t, DIV_ROUND_UP(((t) - (b)), SZ_1K)
 
 #ifdef CONFIG_ENABLE_VMALLOC_SAVING
+static void print_vmalloc_lowmem_range(unsigned long *va_start,
+		unsigned long *va_end, int vmalloc)
+{
+	char *str = vmalloc ? "vmalloc" : "lowmem ";
+	unsigned long size = *va_end - *va_start;
+	if (size >= SZ_1M)
+		pr_notice("    %s : 0x%08lx - 0x%08lx   (%4ld MB)\n",
+			str, MLM(*va_start, *va_end));
+	else if (size >= PAGE_SIZE)
+		pr_notice("    %s : 0x%08lx - 0x%08lx   (%4ld KB)\n",
+			str, MLK(*va_start, *va_end));
+	*va_end = PAGE_ALIGN(*va_start);
+}
+
 static void print_vmalloc_lowmem_info(void)
 {
 	struct memblock_region *reg, *prev_reg = NULL;
@@ -659,6 +673,7 @@ static void print_vmalloc_lowmem_info(void)
 
 			continue;
 		}
+		prev_reg = reg;
 
 		pr_notice(
 		"	   vmalloc : 0x%08lx - 0x%08lx   (%4ld MB)\n",
