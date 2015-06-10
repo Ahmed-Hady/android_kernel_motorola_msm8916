@@ -2403,6 +2403,7 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	int ret = 0;
 	int pwr_state = 0, io_level = 0;
 	unsigned long flags;
+	int retry = 10;
 
 	irq_status = readb_relaxed(msm_host->core_mem + CORE_PWRCTL_STATUS);
 	pr_debug("%s: Received IRQ(%d), status=0x%x\n",
@@ -2417,6 +2418,29 @@ static irqreturn_t sdhci_msm_pwr_irq(int irq, void *data)
 	 * completed before its next update to registers within hc_mem.
 	 */
 	mb();
+	/*
+	 * There is a rare HW scenario where the first clear pulse could be
+	 * lost when actual reset and clear/read of status register is
+	 * happening at a time. Hence, retry for at least 10 times to make
+	 * sure status register is cleared. Otherwise, this will result in
+	 * a spurious power IRQ resulting in system instability.
+	 */
+	while (irq_status &
+		readb_relaxed(msm_host->core_mem + CORE_PWRCTL_STATUS)) {
+		if (retry == 0) {
+			pr_err("%s: Timedout clearing (0x%x) pwrctl status register\n",
+				mmc_hostname(host->mmc), irq_status);
+			sdhci_msm_dump_pwr_ctrl_regs(host);
+			BUG_ON(1);
+		}
+		writeb_relaxed(irq_status,
+				(msm_host->core_mem + CORE_PWRCTL_CLEAR));
+		retry--;
+		udelay(10);
+	}
+	if (likely(retry < 10))
+		pr_debug("%s: success clearing (0x%x) pwrctl status register, retries left %d\n",
+				mmc_hostname(host->mmc), irq_status, retry);
 
 	/* Handle BUS ON/OFF*/
 	if (irq_status & CORE_PWRCTL_BUS_ON) {
