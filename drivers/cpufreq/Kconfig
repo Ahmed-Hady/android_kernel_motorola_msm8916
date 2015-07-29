@@ -59,6 +59,14 @@ choice
 	  This option sets which CPUFreq governor shall be loaded at
 	  startup. If in doubt, select 'performance'.
 
+config CPU_FREQ_DEFAULT_GOV_ADAPTIVE
+	bool "adaptive"
+	select CPU_FREQ_GOV_ADAPTIVE
+	---help---
+	'adaptive' - This driver adds a dynamic cpufreq policy governor
+	designed for latency-sensitive workloads and also for demanding
+	performance.
+
 config CPU_FREQ_DEFAULT_GOV_PERFORMANCE
 	bool "performance"
 	select CPU_FREQ_GOV_PERFORMANCE
@@ -192,6 +200,13 @@ config CPU_FREQ_GOV_SCARY
 
 
 endchoice
+
+config CPU_FREQ_GOV_ADAPTIVE
+	tristate "'adaptive' cpufreq policy governor"
+	---help---
+	  'adaptive' - This driver adds a dynamic cpufreq policy governor
+	  designed for latency-sensitive workloads and also for demanding
+	  performance.
 
 config CPU_FREQ_GOV_PERFORMANCE
 	tristate "'performance' governor"
