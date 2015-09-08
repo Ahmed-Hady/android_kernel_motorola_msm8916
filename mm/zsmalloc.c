@@ -1708,7 +1708,7 @@ static unsigned long zs_can_compact(struct size_class *class)
 	obj_wasted /= get_maxobj_per_zspage(class->size,
 			class->pages_per_zspage);
 
-	return obj_wasted * get_pages_per_zspage(class->size);
+	return obj_wasted * class->pages_per_zspage;
 }
 
 static unsigned long __zs_compact(struct zs_pool *pool,
@@ -1748,7 +1748,8 @@ static unsigned long __zs_compact(struct zs_pool *pool,
 			break;
 
 		putback_zspage(pool, class, dst_page);
-		putback_zspage(pool, class, src_page);
+		if (putback_zspage(pool, class, src_page) == ZS_EMPTY)
+			pool->stats.pages_compacted += class->pages_per_zspage;
 		spin_unlock(&class->lock);
 		nr_total_migrated += cc.nr_migrated;
 		cond_resched();
