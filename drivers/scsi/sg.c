@@ -777,6 +777,7 @@ sg_common_write(Sg_fd * sfp, Sg_request * srp,
 			blk_end_request_all(srp->rq, -EIO);
 			srp->rq = NULL;
 		}
+
 		sg_finish_rem_req(srp);
 		return -ENODEV;
 	}
