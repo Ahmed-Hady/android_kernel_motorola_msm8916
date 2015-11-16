@@ -6205,7 +6205,11 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 
 	cc.zone->cma_alloc = 1;
 
-	ret = __alloc_contig_migrate_range(&cc, start, end);
+	do {
+		cc.retry = false;
+		ret = __alloc_contig_migrate_range(&cc, start, end);
+	} while (cc.retry && cc.passes++ < COMPACTION_PASSES_MAX);
+
 	if (ret)
 		goto done;
 
@@ -6450,6 +6454,7 @@ static const struct trace_print_flags pageflag_names[] = {
 	{1UL << PG_compound_lock,	"compound_lock"	},
 #endif
 	{1UL << PG_readahead,           "PG_readahead"  },
+	{1UL << PG_mobile,              "mobile"  },
 };
 
 static void dump_page_flags(unsigned long flags)
