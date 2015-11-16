@@ -136,6 +136,14 @@ config CPU_FREQ_DEFAULT_GOV_CHILL
 	  governor. If unsure have a look at the help section of the
 	  driver. Fallback governor will be the interactive governor.
 
+config CPU_FREQ_DEFAULT_GOV_INTELLIDEMAND
+ 	bool "intellidemand"
+ 	select CPU_FREQ_GOV_INTELLIDEMAND
+
+config CPU_FREQ_DEFAULT_GOV_DARKNESS
+ 	bool "darkness"
+ 	select CPU_FREQ_GOV_DARKNESS
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -254,6 +262,13 @@ config CPU_BOOST
 	  - Migration of important threads from one CPU to another.
 
 	  If in doubt, say N.
+
+config CPU_FREQ_GOV_INTELLIDEMAND
+ 	tristate "'intellidemand' cpufreq governor"
+ 	depends on CPU_FREQ
+
+config CPU_FREQ_GOV_DARKNESS
+	tristate "'darkness' cpufreq policy governor"
 
 config GENERIC_CPUFREQ_CPU0
 	tristate "Generic CPU0 cpufreq driver"
