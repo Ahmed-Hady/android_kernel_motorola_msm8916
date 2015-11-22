@@ -171,6 +171,13 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTIVE_PRO
 	select CPU_FREQ_GOV_INTERACTIVE_PRO
 	help
 	Use the CPUFreq governor 'interactive_pro' as default.
+
+config CPU_FREQ_DEFAULT_GOV_SMARTMAX
+ 	bool "smartmax"
+ 	select CPU_FREQ_GOV_SMARTMAX
+ 	help
+ 	  Use the CPUFreq governor 'smartmax' as default
+
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -319,6 +326,12 @@ config CPU_FREQ_GOV_ZZMOOVE
 config CPU_FREQ_GOV_WHEATLEY
  	tristate "'wheatley' cpufreq governor"
  	depends on CPU_FREQ 
+
+config CPU_FREQ_GOV_SMARTMAX
+ 	tristate "'smartmax' cpufreq policy governor"
+ 	select CPU_FREQ_TABLE
+ 	help
+ 	  'smartmax' combines ondemand and smartass2
 
 config GENERIC_CPUFREQ_CPU0
 	tristate "Generic CPU0 cpufreq driver"
