@@ -851,7 +851,7 @@ static const struct export_operations f2fs_export_ops = {
 	.get_parent = f2fs_get_parent,
 };
 
-static loff_t max_file_blocks(void)
+static loff_t max_file_size(unsigned bits)
 {
 	loff_t result = (DEF_ADDRS_PER_INODE - F2FS_INLINE_XATTR_ADDRS);
 	loff_t leaf_count = ADDRS_PER_BLOCK;
@@ -867,6 +867,7 @@ static loff_t max_file_blocks(void)
 	leaf_count *= NIDS_PER_BLOCK;
 	result += leaf_count;
 
+	result <<= bits;
 	return result;
 }
 
@@ -896,14 +897,6 @@ static int sanity_check_raw_super(struct super_block *sb,
 		f2fs_msg(sb, KERN_INFO,
 			"Invalid blocksize (%u), supports only 4KB\n",
 			blocksize);
-		return 1;
-	}
-
-	/* check log blocks per segment */
-	if (le32_to_cpu(raw_super->log_blocks_per_seg) != 9) {
-		f2fs_msg(sb, KERN_INFO,
-			"Invalid log blocks per segment (%u)\n",
-			le32_to_cpu(raw_super->log_blocks_per_seg));
 		return 1;
 	}
 
@@ -1149,9 +1142,7 @@ try_onemore:
 	if (err)
 		goto free_options;
 
-	sbi->max_file_blocks = max_file_blocks();
-	sb->s_maxbytes = sbi->max_file_blocks <<
-				le32_to_cpu(raw_super->log_blocksize);
+	sb->s_maxbytes = max_file_size(le32_to_cpu(raw_super->log_blocksize));
 	sb->s_max_links = F2FS_LINK_MAX;
 	get_random_bytes(&sbi->s_next_generation, sizeof(u32));
 

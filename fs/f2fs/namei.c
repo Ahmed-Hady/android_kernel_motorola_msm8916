@@ -403,7 +403,7 @@ fail:
 
 static void *f2fs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
-	struct page *page = page_follow_link_light(dentry, nd);
+	struct page *page;
 
 	if (IS_ERR_OR_NULL(page))
 		return page;
@@ -411,6 +411,8 @@ static void *f2fs_follow_link(struct dentry *dentry, struct nameidata *nd)
 	/* this is broken symlink case */
 	if (*nd_get_link(nd) == 0) {
 		page_put_link(dentry, nd, page);
+		kunmap(page);
+		page_cache_release(page);
 		return ERR_PTR(-ENOENT);
 	}
 	return page;

@@ -752,7 +752,6 @@ struct f2fs_sb_info {
 	unsigned int total_node_count;		/* total node block count */
 	unsigned int total_valid_node_count;	/* valid node block count */
 	unsigned int total_valid_inode_count;	/* valid inode count */
-	loff_t max_file_blocks;			/* max block index of file */
 	int active_logs;			/* # of active logs */
 	int dir_level;				/* directory level */
 
