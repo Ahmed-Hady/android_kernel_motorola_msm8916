@@ -295,7 +295,9 @@ void nls_uniname_to_cstring(struct super_block *sb, u8 *p_cstring, UNI_NAME_T *p
 	struct nls_table *nls = EXFAT_SB(sb)->nls_io;
 
 	if (nls == NULL) {
-		len = utf16s_to_utf8s(uniname, MAX_NAME_LENGTH, UTF16_HOST_ENDIAN, p_cstring, MAX_NAME_LENGTH);
+		len = utf16s_to_utf8s(uniname, MAX_NAME_LENGTH,
+			UTF16_HOST_ENDIAN, p_cstring,
+			MAX_NAME_LENGTH * MAX_CHARSET_SIZE);
 		if (len >= MAX_NAME_LENGTH * MAX_CHARSET_SIZE)
 			len--;
 
