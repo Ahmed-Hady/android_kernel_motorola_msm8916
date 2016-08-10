@@ -244,6 +244,19 @@ void mdss_dsi_cmd_test_pattern(struct mdss_dsi_ctrl_pdata *ctrl)
 	MIPI_OUTP((ctrl->ctrl_base) + 0x015c, 0x0);
 }
 
+void mdss_dsi_get_hw_revision(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	if (ctrl->hw_rev)
+		return;
+
+	mdss_dsi_clk_ctrl(ctrl, DSI_BUS_CLKS, 1);
+	ctrl->hw_rev = MIPI_INP(ctrl->ctrl_base);
+	mdss_dsi_clk_ctrl(ctrl, DSI_BUS_CLKS, 0);
+
+	pr_debug("%s: ndx=%d hw_rev=%x\n", __func__,
+				ctrl->ndx, ctrl->hw_rev);
+}
+
 void mdss_dsi_host_init(struct mdss_panel_data *pdata)
 {
 	u32 dsi_ctrl, intr_ctrl;
@@ -1143,7 +1156,7 @@ static int mdss_dsi_cmd_dma_tpg_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 					struct dsi_buf *tp)
 {
 	int len, i, ret = 0, data = 0;
-	u32 *bp, ctrl_rev;
+	u32 *bp;
 	struct mdss_dsi_ctrl_pdata *mctrl = NULL;
 
 	if (tp->len > DMA_TPG_FIFO_LEN) {
@@ -1151,9 +1164,9 @@ static int mdss_dsi_cmd_dma_tpg_tx(struct mdss_dsi_ctrl_pdata *ctrl,
 		return -EINVAL;
 	}
 
-	ctrl_rev = MIPI_INP(ctrl->ctrl_base);
+	mdss_dsi_get_hw_revision(ctrl);
 
-	if (ctrl_rev < MDSS_DSI_HW_REV_103) {
+	if (ctrl->hw_rev < MDSS_DSI_HW_REV_103) {
 		pr_err("CMD DMA TPG not supported for this DSI version\n");
 		return -EINVAL;
 	}
@@ -1971,7 +1984,6 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 	struct mdss_rect *roi = NULL;
 	int ret = -EINVAL;
 	int rc = 0;
-	u32 ctrl_rev;
 
 	if (mdss_get_sd_client_cnt())
 		return -EPERM;
@@ -1987,10 +1999,9 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 	/* make sure dsi_cmd_mdp is idle */
 	mdss_dsi_cmd_mdp_busy(ctrl);
 
-	ctrl_rev = MIPI_INP(ctrl->ctrl_base);
-
+	mdss_dsi_get_hw_revision(ctrl);
 	/* For DSI versions less than 1.3.0, CMD DMA TPG is not supported */
-	if (ctrl_rev < MDSS_DSI_HW_REV_103)
+	if (ctrl->hw_rev < MDSS_DSI_HW_REV_103)
 		req->flags &= ~CMD_REQ_DMA_TPG;
 
 	pr_debug("%s: ctrl=%d from_mdp=%d pid=%d\n", __func__,
