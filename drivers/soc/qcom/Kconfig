@@ -597,6 +597,14 @@ config FORCE_FAST_CHARGE
 	  This allows users to override default charge rate for both USB and AC
 	  charger input current
 
+config MSM_HOTPLUG
+	bool "MSM hotplug driver"
+	depends on HOTPLUG_CPU
+	default n
+	help
+	  The MSM hotplug driver controls on-/offlining of additional cores based
+	  on current cpu load.
+
 
 config MMI_SOC_INFO
 	default n
