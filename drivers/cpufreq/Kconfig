@@ -160,6 +160,17 @@ config CPU_FREQ_DEFAULT_GOV_WHEATLEY
  	---help---
  	  Use the CPUFreq governor 'wheatley' as default.
 
+config CPU_FREQ_DEFAULT_GOV_INTELLIACTIVE
+	bool "intelliactive"
+	select CPU_FREQ_GOV_PEGASUSQ
+	help
+	Use the CPUFreq governor 'intelliactive' as default.
+
+config CPU_FREQ_DEFAULT_GOV_INTERACTIVE_PRO
+	bool "interactive_pro"
+	select CPU_FREQ_GOV_INTERACTIVE_PRO
+	help
+	Use the CPUFreq governor 'interactive_pro' as default.
 endchoice
 
 config CPU_FREQ_GOV_PERFORMANCE
@@ -276,6 +287,14 @@ config CPU_FREQ_GOV_IMPULSE
     designed for optimized balance between power and performance.
 
     If in doubt, say N.
+
+config CPU_FREQ_GOV_INTELLIACTIVE
+	tristate "'intelliactive' cpufreq policy governor"
+	depends on CPU_FREQ
+
+config CPU_FREQ_GOV_INTERACTIVE_PRO
+	tristate "'interactive_pro' cpufreq governor"
+	depends on CPU_FREQ
 
 config CPU_BOOST
 	tristate "Event base short term CPU freq boost"
