@@ -23,8 +23,6 @@ config MSM_SLEEPER
  	default y
  	help
  	  CPU hotplug driver
-<<<<<<< HEAD
-=======
 
 config INTELLI_PLUG
  	bool "Hotplug for Razor Reborn"
@@ -39,4 +37,3 @@ config ASMP
  default n
  help
    Automatically hotplugs the multiple cpu cores on and off based on cpu load and suspend state
->>>>>>> 8a8eb13... Added support for AutoSMP HotPlug
