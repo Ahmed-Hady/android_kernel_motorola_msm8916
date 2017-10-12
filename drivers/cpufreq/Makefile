@@ -15,17 +15,9 @@ obj-$(CONFIG_CPU_FREQ_GOV_CHILL)	+= cpufreq_chill.o
 obj-$(CONFIG_CPU_FREQ_GOV_IMPULSE)	+= cpufreq_impulse.o
 obj-$(CONFIG_CPU_FREQ_GOV_DARKNESS) 	+= cpufreq_darkness.o
 obj-$(CONFIG_CPU_FREQ_GOV_COMMON)		+= cpufreq_governor.o
-<<<<<<< HEAD
 obj-$(CONFIG_CPU_BOOST)			+= cpu-boost.o
-=======
-obj-$(CONFIG_CPU_BOOST)		+= cpu-boost.o
 obj-$(CONFIG_CPU_FREQ_GOV_ZZMOOVE)	+= cpufreq_zzmoove.o
-<<<<<<< HEAD
->>>>>>> 817e8da1f15... Added support for zzMoove Governor
-
-=======
 obj-$(CONFIG_CPU_FREQ_GOV_WHEATLEY)	+= cpufreq_wheatley.o
->>>>>>> 3c1219a7e48... Added support for Wheatley Governor
 obj-$(CONFIG_GENERIC_CPUFREQ_CPU0)	+= cpufreq-cpu0.o
 
 ##################################################################################
