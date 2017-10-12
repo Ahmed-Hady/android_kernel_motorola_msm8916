@@ -616,10 +616,6 @@ int ring_buffer_poll_wait(struct ring_buffer *buffer, int cpu,
 	struct ring_buffer_per_cpu *cpu_buffer;
 	struct rb_irq_work *work;
 
-	if ((cpu == RING_BUFFER_ALL_CPUS && !ring_buffer_empty(buffer)) ||
-	    (cpu != RING_BUFFER_ALL_CPUS && !ring_buffer_empty_cpu(buffer, cpu)))
-		return POLLIN | POLLRDNORM;
-
 	if (cpu == RING_BUFFER_ALL_CPUS)
 		work = &buffer->irq_work;
 	else {
@@ -630,8 +626,22 @@ int ring_buffer_poll_wait(struct ring_buffer *buffer, int cpu,
 		work = &cpu_buffer->irq_work;
 	}
 
-	work->waiters_pending = true;
 	poll_wait(filp, &work->waiters, poll_table);
+	work->waiters_pending = true;
+	/*
+	 * There's a tight race between setting the waiters_pending and
+	 * checking if the ring buffer is empty.  Once the waiters_pending bit
+	 * is set, the next event will wake the task up, but we can get stuck
+	 * if there's only a single event in.
+	 *
+	 * FIXME: Ideally, we need a memory barrier on the writer side as well,
+	 * but adding a memory barrier to all events will cause too much of a
+	 * performance hit in the fast path.  We only need a memory barrier when
+	 * the buffer goes from empty to having content.  But as this race is
+	 * extremely small, and it's not a problem if another event comes in, we
+	 * will fix it later.
+	 */
+	smp_mb();
 
 	if ((cpu == RING_BUFFER_ALL_CPUS && !ring_buffer_empty(buffer)) ||
 	    (cpu != RING_BUFFER_ALL_CPUS && !ring_buffer_empty_cpu(buffer, cpu)))
@@ -1941,12 +1951,6 @@ rb_set_commit_to_write(struct ring_buffer_per_cpu *cpu_buffer)
 		goto again;
 }
 
-static void rb_reset_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
-{
-	cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
-	cpu_buffer->reader_page->read = 0;
-}
-
 static void rb_inc_iter(struct ring_buffer_iter *iter)
 {
 	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
@@ -1987,7 +1991,7 @@ rb_add_time_stamp(struct ring_buffer_event *event, u64 delta)
 
 /**
  * rb_update_event - update event type and data
- * @event: the even to update
+ * @event: the event to update
  * @type: the type of event
  * @length: the size of the event field in the ring buffer
  *
@@ -2643,7 +2647,7 @@ static DEFINE_PER_CPU(unsigned int, current_context);
 
 static __always_inline int trace_recursive_lock(void)
 {
-	unsigned int val = this_cpu_read(current_context);
+	unsigned int val = __this_cpu_read(current_context);
 	int bit;
 
 	if (in_interrupt()) {
@@ -2660,18 +2664,17 @@ static __always_inline int trace_recursive_lock(void)
 		return 1;
 
 	val |= (1 << bit);
-	this_cpu_write(current_context, val);
+	__this_cpu_write(current_context, val);
 
 	return 0;
 }
 
 static __always_inline void trace_recursive_unlock(void)
 {
-	unsigned int val = this_cpu_read(current_context);
+	unsigned int val = __this_cpu_read(current_context);
 
-	val--;
-	val &= this_cpu_read(current_context);
-	this_cpu_write(current_context, val);
+	val &= val & (val - 1);
+	__this_cpu_write(current_context, val);
 }
 
 #else
@@ -3360,21 +3363,16 @@ static void rb_iter_reset(struct ring_buffer_iter *iter)
 	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
 
 	/* Iterator usage is expected to have record disabled */
-	if (list_empty(&cpu_buffer->reader_page->list)) {
-		iter->head_page = rb_set_head_page(cpu_buffer);
-		if (unlikely(!iter->head_page))
-			return;
-		iter->head = iter->head_page->read;
-	} else {
-		iter->head_page = cpu_buffer->reader_page;
-		iter->head = cpu_buffer->reader_page->read;
-	}
+	iter->head_page = cpu_buffer->reader_page;
+	iter->head = cpu_buffer->reader_page->read;
+
+	iter->cache_reader_page = iter->head_page;
+	iter->cache_read = cpu_buffer->read;
+
 	if (iter->head)
 		iter->read_stamp = cpu_buffer->read_stamp;
 	else
 		iter->read_stamp = iter->head_page->page->time_stamp;
-	iter->cache_reader_page = cpu_buffer->reader_page;
-	iter->cache_read = cpu_buffer->read;
 }
 
 /**
@@ -3407,11 +3405,23 @@ EXPORT_SYMBOL_GPL(ring_buffer_iter_reset);
 int ring_buffer_iter_empty(struct ring_buffer_iter *iter)
 {
 	struct ring_buffer_per_cpu *cpu_buffer;
+	struct buffer_page *reader;
+	struct buffer_page *head_page;
+	struct buffer_page *commit_page;
+	unsigned commit;
 
 	cpu_buffer = iter->cpu_buffer;
 
-	return iter->head_page == cpu_buffer->commit_page &&
-		iter->head == rb_commit_index(cpu_buffer);
+	/* Remember, trace recording is off when iterator is in use */
+	reader = cpu_buffer->reader_page;
+	head_page = cpu_buffer->head_page;
+	commit_page = cpu_buffer->commit_page;
+	commit = rb_page_commit(commit_page);
+
+	return ((iter->head_page == commit_page && iter->head == commit) ||
+		(iter->head_page == reader && commit_page == head_page &&
+		 head_page->read == commit &&
+		 iter->head == rb_page_commit(cpu_buffer->reader_page)));
 }
 EXPORT_SYMBOL_GPL(ring_buffer_iter_empty);
 
@@ -3590,7 +3600,7 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 
 	/* Finally update the reader page to the new head */
 	cpu_buffer->reader_page = reader;
-	rb_reset_reader_page(cpu_buffer);
+	cpu_buffer->reader_page->read = 0;
 
 	if (overwrite != cpu_buffer->last_overrun) {
 		cpu_buffer->lost_events = overwrite - cpu_buffer->last_overrun;
@@ -3600,6 +3610,10 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 	goto again;
 
  out:
+	/* Update the read_stamp on the first event */
+	if (reader && reader->read == 0)
+		cpu_buffer->read_stamp = reader->page->time_stamp;
+
 	arch_spin_unlock(&cpu_buffer->lock);
 	local_irq_restore(flags);
 
@@ -3767,12 +3781,14 @@ rb_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
 		return NULL;
 
 	/*
-	 * We repeat when a time extend is encountered.
-	 * Since the time extend is always attached to a data event,
-	 * we should never loop more than once.
-	 * (We never hit the following condition more than twice).
+	 * We repeat when a time extend is encountered or we hit
+	 * the end of the page. Since the time extend is always attached
+	 * to a data event, we should never loop more than three times.
+	 * Once for going to next page, once on time extend, and
+	 * finally once to get the event.
+	 * (We never hit the following condition more than thrice).
 	 */
-	if (RB_WARN_ON(cpu_buffer, ++nr_loops > 2))
+	if (RB_WARN_ON(cpu_buffer, ++nr_loops > 3))
 		return NULL;
 
 	if (rb_per_cpu_empty(cpu_buffer))
@@ -4836,9 +4852,9 @@ static __init int test_ringbuffer(void)
 		rb_data[cpu].cnt = cpu;
 		rb_threads[cpu] = kthread_create(rb_test, &rb_data[cpu],
 						 "rbtester/%d", cpu);
-		if (WARN_ON(!rb_threads[cpu])) {
+		if (WARN_ON(IS_ERR(rb_threads[cpu]))) {
 			pr_cont("FAILED\n");
-			ret = -1;
+			ret = PTR_ERR(rb_threads[cpu]);
 			goto out_free;
 		}
 
@@ -4848,9 +4864,9 @@ static __init int test_ringbuffer(void)
 
 	/* Now create the rb hammer! */
 	rb_hammer = kthread_run(rb_hammer_test, NULL, "rbhammer");
-	if (WARN_ON(!rb_hammer)) {
+	if (WARN_ON(IS_ERR(rb_hammer))) {
 		pr_cont("FAILED\n");
-		ret = -1;
+		ret = PTR_ERR(rb_hammer);
 		goto out_free;
 	}
 

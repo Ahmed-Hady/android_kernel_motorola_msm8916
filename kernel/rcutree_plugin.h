@@ -1829,12 +1829,10 @@ static int rcu_oom_notify(struct notifier_block *self,
 	 */
 	atomic_set(&oom_callback_count, 1);
 
-	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		smp_call_function_single(cpu, rcu_oom_notify_cpu, NULL, 1);
 		cond_resched();
 	}
-	put_online_cpus();
 
 	/* Unconditionally decrement: no need to wake ourselves up. */
 	atomic_dec(&oom_callback_count);
@@ -2243,6 +2241,7 @@ static int rcu_nocb_kthread(void *arg)
 				cl++;
 			c++;
 			local_bh_enable();
+			cond_resched();
 			list = next;
 		}
 		trace_rcu_batch_end(rdp->rsp->name, c, !!list, 0, 0, 1);

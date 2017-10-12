@@ -824,51 +824,6 @@ static inline int rt_se_prio(struct sched_rt_entity *rt_se)
 	return rt_task_of(rt_se)->prio;
 }
 
-static void dump_throttled_rt_tasks(struct rt_rq *rt_rq)
-{
-	struct rt_prio_array *array = &rt_rq->active;
-	struct sched_rt_entity *rt_se;
-	char buf[500];
-	char *pos = buf;
-	char *end = buf + sizeof(buf);
-	int idx;
-
-	pos += snprintf(pos, sizeof(buf),
-		"sched: RT throttling activated for rt_rq %p (cpu %d)\n",
-		rt_rq, cpu_of(rq_of_rt_rq(rt_rq)));
-
-	if (bitmap_empty(array->bitmap, MAX_RT_PRIO))
-		goto out;
-
-	pos += snprintf(pos, end - pos, "potential CPU hogs:\n");
-	idx = sched_find_first_bit(array->bitmap);
-	while (idx < MAX_RT_PRIO) {
-		list_for_each_entry(rt_se, array->queue + idx, run_list) {
-			struct task_struct *p;
-
-			if (!rt_entity_is_task(rt_se))
-				continue;
-
-			p = rt_task_of(rt_se);
-			if (pos < end)
-				pos += snprintf(pos, end - pos, "\t%s (%d)\n",
-					p->comm, p->pid);
-		}
-		idx = find_next_bit(array->bitmap, MAX_RT_PRIO, idx + 1);
-	}
-out:
-#ifdef CONFIG_PANIC_ON_RT_THROTTLING
-	/*
-	 * Use pr_err() in the BUG() case since printk_sched() will
-	 * not get flushed and deadlock is not a concern.
-	 */
-	pr_err("%s", buf);
-	BUG();
-#else
-	printk_sched("%s", buf);
-#endif
-}
-
 static int sched_rt_runtime_exceeded(struct rt_rq *rt_rq)
 {
 	u64 runtime = sched_rt_runtime(rt_rq);
@@ -898,7 +853,7 @@ static int sched_rt_runtime_exceeded(struct rt_rq *rt_rq)
 
 			if (!once) {
 				once = true;
-				dump_throttled_rt_tasks(rt_rq);
+				printk_deferred("sched: RT throttling activated\n");
 			}
 		} else {
 			/*
@@ -1326,7 +1281,12 @@ select_task_rq_rt(struct task_struct *p, int sd_flag, int flags)
 	    (p->nr_cpus_allowed > 1)) {
 		int target = find_lowest_rq(p);
 
-		if (target != -1)
+		/*
+		 * Don't bother moving it if the destination CPU is
+		 * not running a lower priority task.
+		 */
+		if (target != -1 &&
+		    p->prio < cpu_rq(target)->rt.highest_prio.curr)
 			cpu = target;
 	}
 	rcu_read_unlock();
@@ -1661,6 +1621,16 @@ static struct rq *find_lock_lowest_rq(struct task_struct *task, struct rq *rq)
 			break;
 
 		lowest_rq = cpu_rq(cpu);
+
+		if (lowest_rq->rt.highest_prio.curr <= task->prio) {
+			/*
+			 * Target rq has tasks of equal or higher priority,
+			 * retrying does not release any lock and is unlikely
+			 * to yield a different result.
+			 */
+			lowest_rq = NULL;
+			break;
+		}
 
 		/* if the prio of this runqueue changed, try again */
 		if (double_lock_balance(rq, lowest_rq)) {

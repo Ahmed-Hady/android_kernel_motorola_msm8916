@@ -39,7 +39,7 @@ static struct cpufreq_driver *cpufreq_driver;
 static DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data);
 static DEFINE_PER_CPU(struct cpufreq_policy *, cpufreq_cpu_data_fallback);
 static DEFINE_RWLOCK(cpufreq_driver_lock);
-static DEFINE_MUTEX(cpufreq_governor_lock);
+DEFINE_MUTEX(cpufreq_governor_lock);
 static LIST_HEAD(cpufreq_policy_list);
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -339,6 +339,17 @@ void cpufreq_notify_transition(struct cpufreq_policy *policy,
 }
 EXPORT_SYMBOL_GPL(cpufreq_notify_transition);
 
+/**
+cpufreq_notify_utilization - notify CPU userspace about CPU utilization change
+This function is called everytime the CPU load is evaluated by the ondemand governor. 
+It notifies userspace of cpu load changes via sysfs.
+*/
+void cpufreq_notify_utilization(struct cpufreq_policy *policy,
+ unsigned int util)
+{
+ if (policy)
+ policy->util = util;
+}
 
 /*********************************************************************
  *                          SYSFS INTERFACE                          *
@@ -472,9 +483,11 @@ static ssize_t show_cpuinfo_cur_freq(struct cpufreq_policy *policy,
 					char *buf)
 {
 	unsigned int cur_freq = __cpufreq_get(policy->cpu);
-	if (!cur_freq)
-		return sprintf(buf, "<unknown>");
-	return sprintf(buf, "%u\n", cur_freq);
+
+	if (cur_freq)
+		return sprintf(buf, "%u\n", cur_freq);
+
+	return sprintf(buf, "<unknown>\n");
 }
 
 /**
@@ -501,6 +514,9 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	int ret;
 	char	str_governor[16];
 	struct cpufreq_policy new_policy;
+	char *envp[3];
+	char buf1[64];
+	char buf2[64];
 
 	ret = cpufreq_get_policy(&new_policy, policy->cpu);
 	if (ret)
@@ -523,6 +539,13 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	policy->user_policy.governor = policy->governor;
 
 	sysfs_notify(&policy->kobj, NULL, "scaling_governor");
+
+	snprintf(buf1, sizeof(buf1), "GOV=%s", policy->governor->name);
+	snprintf(buf2, sizeof(buf2), "CPU=%u", policy->cpu);
+	envp[0] = buf1;
+	envp[1] = buf2;
+	envp[2] = NULL;
+	kobject_uevent_env(cpufreq_global_kobject, KOBJ_ADD, envp);
 
 	if (ret)
 		return ret;
@@ -1405,6 +1428,20 @@ static void cpufreq_out_of_sync(unsigned int cpu, unsigned int old_freq,
 	cpufreq_notify_transition(policy, &freqs, CPUFREQ_POSTCHANGE);
 }
 
+unsigned int cpufreq_quick_get_util(unsigned int cpu)
+{
+ struct cpufreq_policy *policy = cpufreq_cpu_get(cpu);
+ unsigned int ret_util = 0;
+
+ if (policy) {
+ ret_util = policy->util;
+ cpufreq_cpu_put(policy);
+ }
+
+ return ret_util;
+}
+EXPORT_SYMBOL(cpufreq_quick_get_util);
+
 /**
  * cpufreq_quick_get - get the CPU frequency (in kHz) from policy->cur
  * @cpu: CPU number
@@ -1809,6 +1846,22 @@ EXPORT_SYMBOL_GPL(cpufreq_driver_target);
 /*
  * when "event" is CPUFREQ_GOV_LIMITS
  */
+
+int __cpufreq_driver_getavg(struct cpufreq_policy *policy, unsigned int cpu)
+{
+ int ret = 0;
+
+ policy = cpufreq_cpu_get(policy->cpu);
+ if (!policy)
+ return -EINVAL;
+
+ if (cpu_online(cpu) && cpufreq_driver->getavg)
+ ret = cpufreq_driver->getavg(policy, cpu);
+
+ cpufreq_cpu_put(policy);
+ return ret;
+}
+EXPORT_SYMBOL_GPL(__cpufreq_driver_getavg);
 
 static int __cpufreq_governor(struct cpufreq_policy *policy,
 					unsigned int event)

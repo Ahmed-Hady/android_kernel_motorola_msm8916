@@ -485,7 +485,7 @@ static void writeout_period(unsigned long t)
  * registered backing devices, which, for obvious reasons, can not
  * exceed 100%.
  */
-static unsigned int bdi_min_ratio;
+static unsigned int bdi_min_ratio = 5;
 
 int bdi_set_min_ratio(struct backing_dev_info *bdi, unsigned int min_ratio)
 {
@@ -796,8 +796,11 @@ static void bdi_update_write_bandwidth(struct backing_dev_info *bdi,
 	 *                   bw * elapsed + write_bandwidth * (period - elapsed)
 	 * write_bandwidth = ---------------------------------------------------
 	 *                                          period
+	 *
+	 * @written may have decreased due to account_page_redirty().
+	 * Avoid underflowing @bw calculation.
 	 */
-	bw = written - bdi->written_stamp;
+	bw = written - min(written, bdi->written_stamp);
 	bw *= HZ;
 	if (unlikely(elapsed > period)) {
 		do_div(bw, elapsed);
@@ -861,7 +864,7 @@ static void global_update_bandwidth(unsigned long thresh,
 				    unsigned long now)
 {
 	static DEFINE_SPINLOCK(dirty_lock);
-	static unsigned long update_time;
+	static unsigned long update_time = INITIAL_JIFFIES;
 
 	/*
 	 * check locklessly first to optimize away locking for the most time
