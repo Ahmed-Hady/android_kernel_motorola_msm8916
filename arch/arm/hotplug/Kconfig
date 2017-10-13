@@ -29,3 +29,9 @@ config MSM_SLEEPER
  	help
  	  CPU hotplug driver
 
+config INTELLI_PLUG
+ 	bool "Hotplug for Razor Reborn"
+ 	depends on MSM_RUN_QUEUE_STATS
+ 	default y
+ 	help
+ 	  This enables kernel based multi core control.
