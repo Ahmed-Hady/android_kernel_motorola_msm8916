@@ -9,3 +9,10 @@ config CLUSTER_PLUG
           This hotplug implementation always keeps the big cluster
           online, and only activates the little cluster for heavy
           parallel loads.
+
+config BRICKED_HOTPLUG
+ 	bool "Enable kernel based mpdecision"
+ 	depends on MSM_RUN_QUEUE_STATS
+ 	default y
+ 	help
+ 	  This enables kernel based multi core control. 
