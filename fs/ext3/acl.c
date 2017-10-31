@@ -206,11 +206,7 @@ ext3_set_acl(handle_t *handle, struct inode *inode, int type,
 			name_index = EXT3_XATTR_INDEX_POSIX_ACL_ACCESS;
 			if (acl) {
 				error = posix_acl_update_mode(inode, &inode->i_mode, &acl);
-<<<<<<< 49177c24adee834df2e65426ad6ec5e37edd58f5
-				if (error)
-=======
 				if (error < 0)
->>>>>>> posix_acl: Clear SGID bit when setting file permissions
 					return error;
 				inode->i_ctime = CURRENT_TIME_SEC;
 				ext3_mark_inode_dirty(handle, inode);
