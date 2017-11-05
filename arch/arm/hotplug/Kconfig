@@ -36,3 +36,9 @@ config ASMP
 	help
 	  Automatically hotplugs the multiple cpu cores on and off based on cpu load and suspend state
 
+config MAKO_HOTPLUG
+ 	bool "Mako Hotplug"
+ 	default n
+ 	help
+ 	  Mako Hotplug: A custom hotplug by fransico franco
+
