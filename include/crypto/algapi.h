@@ -103,6 +103,7 @@ struct blkcipher_walk {
 	unsigned int ivsize;
 
 	int flags;
+	unsigned int blocksize;
 	unsigned int walk_blocksize;
 	unsigned int cipher_blocksize;
 	unsigned int alignmask;
