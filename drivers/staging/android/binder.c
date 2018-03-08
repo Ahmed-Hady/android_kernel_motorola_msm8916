@@ -3330,50 +3330,9 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	}
 
 	switch (cmd) {
-	case BINDER_WRITE_READ: {
-		struct binder_write_read bwr;
-		if (size != sizeof(struct binder_write_read)) {
-			ret = -EINVAL;
-			goto err;
-		}
-		if (copy_from_user_preempt_disabled(&bwr, ubuf, sizeof(bwr))) {
-			ret = -EFAULT;
-			goto err;
-		}
-		binder_debug(BINDER_DEBUG_READ_WRITE,
-			     "%d:%d write %lld at %016llx, read %lld at %016llx\n",
-			     proc->pid, thread->pid,
-			     (u64)bwr.write_size, (u64)bwr.write_buffer,
-			     (u64)bwr.read_size, (u64)bwr.read_buffer);
-
-		if (bwr.write_size > 0) {
-			ret = binder_thread_write(proc, thread, bwr.write_buffer, bwr.write_size, &bwr.write_consumed);
-			trace_binder_write_done(ret);
-			if (ret < 0) {
-				bwr.read_consumed = 0;
-				if (copy_to_user_preempt_disabled(ubuf, &bwr, sizeof(bwr)))
-					ret = -EFAULT;
-				goto err;
-			}
-		}
-		if (bwr.read_size > 0) {
-			ret = binder_thread_read(proc, thread, bwr.read_buffer, bwr.read_size, &bwr.read_consumed, filp->f_flags & O_NONBLOCK);
-			trace_binder_read_done(ret);
-			if (!list_empty(&proc->todo))
-				wake_up_interruptible(&proc->wait);
-			if (ret < 0) {
-				if (copy_to_user_preempt_disabled(ubuf, &bwr, sizeof(bwr)))
-					ret = -EFAULT;
-				goto err;
-			}
-		}
-		binder_debug(BINDER_DEBUG_READ_WRITE,
-			     "%d:%d wrote %lld of %lld, read return %lld of %lld\n",
-			     proc->pid, thread->pid,
-			     (u64)bwr.write_consumed, (u64)bwr.write_size,
-			     (u64)bwr.read_consumed, (u64)bwr.read_size);
-		if (copy_to_user_preempt_disabled(ubuf, &bwr, sizeof(bwr))) {
-			ret = -EFAULT;
+	case BINDER_WRITE_READ:
+		ret = binder_ioctl_write_read(filp, cmd, arg, thread);
+		if (ret)
 			goto err;
 		break;
 	case BINDER_SET_MAX_THREADS:
