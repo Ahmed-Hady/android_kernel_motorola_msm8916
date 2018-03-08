@@ -403,7 +403,7 @@ fail:
 
 static void *f2fs_follow_link(struct dentry *dentry, struct nameidata *nd)
 {
-	struct page *page;
+	struct page *page = page_follow_link_light(dentry, nd);
 
 	if (IS_ERR_OR_NULL(page))
 		return page;
