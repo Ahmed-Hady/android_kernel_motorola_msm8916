@@ -16,7 +16,6 @@
 #include <linux/miscdevice.h>
 #include <linux/uaccess.h>
 #include <linux/mutex.h>
-#include <linux/ratelimit.h>
 #include <sound/audio_cal_utils.h>
 
 
@@ -128,6 +127,8 @@ size_t get_cal_info_size(int32_t cal_type)
 	case ULP_LSM_CAL_TYPE:
 		size = sizeof(struct audio_cal_info_lsm);
 		break;
+	case DTS_EAGLE_CAL_TYPE:
+		size = 0;
 	case AUDIO_CORE_METAINFO_CAL_TYPE:
 		size = sizeof(struct audio_cal_info_metainfo);
 		break;
@@ -245,6 +246,8 @@ size_t get_user_cal_type_size(int32_t cal_type)
 	case ULP_LSM_CAL_TYPE:
 		size = sizeof(struct audio_cal_type_lsm);
 		break;
+	case DTS_EAGLE_CAL_TYPE:
+		size = 0;
 	case AUDIO_CORE_METAINFO_CAL_TYPE:
 		size = sizeof(struct audio_cal_type_metainfo);
 		break;
@@ -655,7 +658,6 @@ static int map_memory(struct cal_type_data *cal_type,
 			struct cal_block_data *cal_block)
 {
 	int ret = 0;
-	static DEFINE_RATELIMIT_STATE(rl, HZ/2, 1);
 
 
 	if (cal_type->info.cal_util_callbacks.map_cal != NULL) {
@@ -670,8 +672,7 @@ static int map_memory(struct cal_type_data *cal_type,
 		ret = cal_type->info.cal_util_callbacks.
 			map_cal(cal_type->info.reg.cal_type, cal_block);
 		if (ret < 0) {
-			if (__ratelimit(&rl))
-				pr_err("%s: map_cal failed, cal type %d, ret = %d!\n",
+			pr_err("%s: map_cal failed, cal type %d, ret = %d!\n",
 				__func__, cal_type->info.reg.cal_type,
 				ret);
 			goto done;
