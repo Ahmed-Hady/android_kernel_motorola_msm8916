@@ -20,6 +20,7 @@
 #include <net/net_namespace.h>
 
 int sel_netif_sid(struct net *ns, int ifindex, u32 *sid);
+void sel_netif_flush(void);
 
 #endif	/* _SELINUX_NETIF_H_ */
 
