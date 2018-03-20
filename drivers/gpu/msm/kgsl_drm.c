@@ -70,16 +70,32 @@
 #define IS_MEM_UNCACHED(_t) \
 	(((_t & DRM_KGSL_GEM_TYPE_MEM_MASK) == DRM_KGSL_GEM_TYPE_KMEM_NOCACHE))
 
+extern u32 mdp_drm_intr_status;
+extern u32 mdp_drm_intr_mask;
+
 /* Returns true if memory type is secure */
 
 #define TYPE_IS_SECURE(_t) \
 	((_t & DRM_KGSL_GEM_TYPE_MEM_MASK) == DRM_KGSL_GEM_TYPE_MEM_SECURE)
 
+enum MDSS_MDP_REG {
+	MDSS_MDP_REG_INTR_EN,
+	MDSS_MDP_REG_INTR_STATUS,
+	MDSS_MDP_REG_INTR_CLEAR,
+};
+
 struct drm_kgsl_private {
+	struct drm_device *drm_dev;
 	void __iomem *regs;
 	size_t reg_size;
 	unsigned int irq;
-	atomic_t vbl_received;
+	atomic_t vblank_cnt[DRM_KGSL_CRTC_MAX];
+        u32 vsync_irq;
+	u32 mdp_reg[3];
+	u32 irq_mask[DRM_KGSL_CRTC_MAX];
+	bool fake_vbl;
+	struct work_struct fake_vbl_work;
+	struct mutex fake_vbl_lock;
 };
 
 struct drm_kgsl_gem_object {
@@ -1305,20 +1321,38 @@ kgsl_drm_get_vblank_counter(struct drm_device *dev, int crtc)
 
 	DRM_DEBUG("%s:crtc[%d]\n", __func__, crtc);
 
-	if (crtc != 0)
-		return 0;
+	if (crtc >= DRM_KGSL_CRTC_MAX) {
+		DRM_ERROR("failed to get vblank counter, \
+				CRTC %d not supported\n", crtc);
+		return -EINVAL;
+	}
 
-	return atomic_read(&dev_priv->vbl_received);
+	return atomic_read(&dev_priv->vblank_cnt[crtc]);
 }
 
 static int
 kgsl_drm_enable_vblank(struct drm_device *dev, int crtc)
 {
+	struct drm_kgsl_private *dev_priv =
+		(struct drm_kgsl_private *)dev->dev_private;
+
 	DRM_DEBUG("%s:crtc[%d]\n", __func__, crtc);
 
-	if (crtc != 0) {
-		DRM_ERROR("failed to enable vblank.\n");
+	if (crtc >= DRM_KGSL_CRTC_MAX) {
+		DRM_ERROR("failed to disable vblank, \
+				CRTC %d not supported\n", crtc);
 		return -EINVAL;
+	}
+
+	switch (crtc) {
+	case DRM_KGSL_CRTC_FAKE:
+		mutex_lock(&dev_priv->fake_vbl_lock);
+		dev_priv->fake_vbl = true;
+		schedule_work(&dev_priv->fake_vbl_work);
+		mutex_unlock(&dev_priv->fake_vbl_lock);
+		break;
+	default:
+		break;
 	}
 
 	return 0;
@@ -1327,20 +1361,73 @@ kgsl_drm_enable_vblank(struct drm_device *dev, int crtc)
 static void
 kgsl_drm_disable_vblank(struct drm_device *dev, int crtc)
 {
+	struct drm_kgsl_private *dev_priv =
+		(struct drm_kgsl_private *)dev->dev_private;
+
 	DRM_DEBUG("%s:crtc[%d]\n", __func__, crtc);
 
 	if (crtc != 0)
 		DRM_ERROR("failed to disable vblank.\n");
+
+	switch (crtc) {
+	case DRM_KGSL_CRTC_FAKE:
+		mutex_lock(&dev_priv->fake_vbl_lock);
+		dev_priv->fake_vbl = false;
+		mutex_unlock(&dev_priv->fake_vbl_lock);
+		break;
+	default:
+		break;
+	}
 }
 
 static irqreturn_t
 kgsl_drm_irq_handler(DRM_IRQ_ARGS)
 {
 	struct drm_device *dev = (struct drm_device *)arg;
+	struct drm_kgsl_private *dev_priv =
+		(struct drm_kgsl_private *)dev->dev_private;
+	u32 isr = mdp_drm_intr_status;
+	int i=0;
 
-	drm_handle_vblank(dev, 0);
+	DRM_DEBUG("%s: isr[0x%x] mdp_drm_intr_status =%u \n",
+			__func__, isr, mdp_drm_intr_status);
 
+	if (isr == 0)
+		goto irq_done;
+
+	do {
+		if (isr & dev_priv->irq_mask[i]) {
+			DRM_DEBUG("%s:crtc[%d] \n", __func__,i);
+			drm_handle_vblank(dev, i);
+			smp_mb__before_atomic();
+			atomic_inc(&dev_priv->vblank_cnt[i]);
+			smp_mb__after_atomic();
+			break;
+		}
+		i++;
+	} while(i < DRM_KGSL_CRTC_MAX);
+
+irq_done:
 	return IRQ_HANDLED;
+}
+
+static void
+kgsl_drm_fake_vblank_handler(struct work_struct *work)
+{
+	struct drm_kgsl_private *dev_priv = container_of(work,
+			struct drm_kgsl_private, fake_vbl_work);
+
+	/* refresh rate is about 60Hz. */
+	usleep_range(15000, 16000);
+
+	DRM_DEBUG("%s\n", __func__);
+
+	mutex_lock(&dev_priv->fake_vbl_lock);
+	drm_handle_vblank(dev_priv->drm_dev, DRM_KGSL_CRTC_FAKE);
+	mutex_unlock(&dev_priv->fake_vbl_lock);
+
+	if (dev_priv->fake_vbl)
+		schedule_work(&dev_priv->fake_vbl_work);
 }
 
 static void
@@ -1348,10 +1435,17 @@ kgsl_drm_irq_preinstall(struct drm_device *dev)
 {
 	struct drm_kgsl_private *dev_priv =
 		(struct drm_kgsl_private *)dev->dev_private;
+	int i;
+	mdp_drm_intr_mask = 0;
 
 	DRM_DEBUG("%s\n", __func__);
 
-	atomic_set(&dev_priv->vbl_received, 0);
+	for (i = 0; i < DRM_KGSL_CRTC_MAX; i++) {
+		if ( i != DRM_KGSL_CRTC_FAKE ) {
+			atomic_set(&dev_priv->vblank_cnt[i], 0);
+			mdp_drm_intr_mask |= dev_priv->irq_mask[i];
+		}
+	}
 
 	dev->irq_enabled = 0;
 }
@@ -1361,10 +1455,23 @@ kgsl_drm_irq_postinstall(struct drm_device *dev)
 {
 	struct drm_kgsl_private *dev_priv =
 		(struct drm_kgsl_private *)dev->dev_private;
+	u32 mask;
 
-	DRM_DEBUG("%s:regs[0x%x]\n", __func__, (int)dev_priv->regs);
+	mdss_mdp_clk_ctrl(1, false);
+	mask = readl_relaxed(dev_priv->regs +
+			dev_priv->mdp_reg[MDSS_MDP_REG_INTR_EN]);
+
+	DRM_DEBUG("%s:regs[0x%lx]\n", __func__, (uintptr_t)dev_priv->regs);
+
+	mask |= dev_priv->vsync_irq;
+	writel_relaxed(dev_priv->vsync_irq,
+		dev_priv->regs + dev_priv->mdp_reg[MDSS_MDP_REG_INTR_CLEAR]);
+	writel_relaxed(mask,
+		dev_priv->regs + dev_priv->mdp_reg[MDSS_MDP_REG_INTR_EN]);
 
 	dev->irq_enabled = 1;
+
+	mdss_mdp_clk_ctrl(0, false);
 
 	return 0;
 }
@@ -1374,10 +1481,21 @@ kgsl_drm_irq_uninstall(struct drm_device *dev)
 {
 	struct drm_kgsl_private *dev_priv =
 		(struct drm_kgsl_private *)dev->dev_private;
+	u32 mask;
 
-	DRM_DEBUG("%s:regs[0x%x]\n", __func__, (int)dev_priv->regs);
+	mdss_mdp_clk_ctrl(1, false);
+	mask = readl_relaxed(dev_priv->regs + dev_priv->mdp_reg[MDSS_MDP_REG_INTR_EN]);
 
+	DRM_DEBUG("%s:regs[0x%lx]\n", __func__, (uintptr_t)dev_priv->regs);
+
+	mask &= ~dev_priv->vsync_irq;
+	writel_relaxed(mask,
+			dev_priv->regs + dev_priv->mdp_reg[MDSS_MDP_REG_INTR_EN]);
+
+	mdp_drm_intr_mask = 0;
 	dev->irq_enabled = 0;
+
+	mdss_mdp_clk_ctrl(0, false);
 }
 
 int kgsl_gem_prime_handle_to_fd(struct drm_device *dev,
@@ -1550,14 +1668,14 @@ static int kgsl_drm_gem_one_info(int id, void *ptr, void *data)
 	struct drm_kgsl_file_private *file_priv =
 				gem_info_data->filp->driver_priv;
 
-	seq_printf(gem_info_data->m, "%3d \t%3d \t%3d \t%2d \t\t%2d \t0x%08x"\
+	seq_printf(gem_info_data->m, "%3ld \t%3d \t%3d \t%2d \t\t%2d \t0x%08lx"\
 				" \t0x%x \t%2d \t\t%2d \t\t%2d\n",
-				(int)gem_info_data->filp->pid,
+				(uintptr_t)gem_info_data->filp->pid,
 				file_priv->tgid,
 				id,
 				atomic_read(&obj->refcount.refcount),
 				atomic_read(&obj->handle_count),
-				priv->memdesc.size,
+				(unsigned long)priv->memdesc.size,
 				priv->flags,
 				priv->bufcount,
 				obj->export_dma_buf ? 1 : 0,
@@ -1593,7 +1711,82 @@ static int kgsl_drm_gem_info(struct seq_file *m, void *data)
 static struct drm_info_list kgsl_drm_debugfs_list[] = {
 	{"gem_info", kgsl_drm_gem_info, DRIVER_GEM},
 };
+
 #define KGSL_DRM_DEBUGFS_ENTRIES ARRAY_SIZE(kgsl_drm_debugfs_list)
+
+int kgsl_drm_debugfs_init(struct drm_minor *minor)
+{
+	return drm_debugfs_create_files(kgsl_drm_debugfs_list,
+					KGSL_DRM_DEBUGFS_ENTRIES,
+					minor->debugfs_root, minor);
+}
+
+void kgsl_drm_debugfs_cleanup(struct drm_minor *minor)
+{
+	drm_debugfs_remove_files(kgsl_drm_debugfs_list,
+				 KGSL_DRM_DEBUGFS_ENTRIES, minor);
+}
+
+
+static void kgsl_drm_parse_dt(struct drm_device *dev)
+{
+	struct drm_kgsl_private *dev_priv;
+	struct platform_device *pdev;
+	int ret;
+
+	pdev = dev->driver->kdriver.platform_device;
+	if (!pdev) {
+		DRM_ERROR("failed to get platform device.\n");
+		return;
+	}
+
+	dev_priv = dev->dev_private;
+	if (!dev_priv) {
+		DRM_ERROR("failed to get drm device private.\n");
+		return;
+	}
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,mdss-vsync-irq",
+			&dev_priv->vsync_irq);
+	if (ret)
+		DRM_ERROR("prop qcom,mdss-vsync-irq : u32 read\n");
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,mdss-mdp-reg-intr-en",
+			&dev_priv->mdp_reg[MDSS_MDP_REG_INTR_EN]);
+	if (ret)
+		DRM_ERROR("prop qcom,intr-en: u32 read\n");
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,mdss-mdp-reg-intr-status",
+			&dev_priv->mdp_reg[MDSS_MDP_REG_INTR_STATUS]);
+	if (ret)
+		DRM_ERROR("prop qcom,intr-status : u32 read\n");
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,mdss-mdp-reg-intr-clear",
+			&dev_priv->mdp_reg[MDSS_MDP_REG_INTR_CLEAR]);
+	if (ret)
+		DRM_ERROR("prop qcom,intr-clear : u32 read\n");
+
+	ret = of_property_read_u32(pdev->dev.of_node,
+			"qcom,mdss-vsync-primary-mask",
+			&dev_priv->irq_mask[DRM_KGSL_CRTC_PRIMARY]);
+	if (ret)
+		DRM_ERROR("prop qcom,primary-mask: u32 read\n");
+
+	DRM_DEBUG("mdss: vsync_irq=%x intr_en=%x intr_status=%x intr_clr=%x\n",
+			dev_priv->vsync_irq,
+			dev_priv->mdp_reg[MDSS_MDP_REG_INTR_EN],
+			dev_priv->mdp_reg[MDSS_MDP_REG_INTR_STATUS],
+			dev_priv->mdp_reg[MDSS_MDP_REG_INTR_CLEAR]);
+
+	DRM_DEBUG("irq_mask: primary=%x\n",
+			dev_priv->irq_mask[DRM_KGSL_CRTC_PRIMARY]);
+
+	return;
+}
 
 static int kgsl_drm_load(struct drm_device *dev, unsigned long flags)
 {
@@ -1633,14 +1826,34 @@ static int kgsl_drm_load(struct drm_device *dev, unsigned long flags)
 
 	/* acquire interrupt */
 	dev_priv->irq = platform_get_irq_byname(pdev, KGSL_DRM_IRQ);
+
+	/* init workqueue for fake vsync */
+	INIT_WORK(&dev_priv->fake_vbl_work, kgsl_drm_fake_vblank_handler);
+
+	/* mutext init */
+	mutex_init(&dev_priv->fake_vbl_lock);
+
+	/* store dev structure */
+	dev_priv->drm_dev = dev;
+
 	dev->dev_private = (void *)dev_priv;
 
-	DRM_DEBUG("%s:irq[%d]start[0x%x]regs[0x%x]reg_size[0x%x]\n", __func__,
-		dev_priv->irq, (int)res->start, (int)dev_priv->regs,
+	kgsl_drm_parse_dt(dev);
+
+	DRM_DEBUG("%s:irq[%d]start[0x%x]regs[0x%lx]reg_size[0x%x]\n", __func__,
+		dev_priv->irq, (int)res->start, (uintptr_t)dev_priv->regs,
 		(int)dev_priv->reg_size);
 
-	/* initialize variables related to vblank and waitqueue. */
-	ret = drm_vblank_init(dev, 1);
+
+	/*
+	 * initialize variables related to vblank and waitqueue.
+	 * 1 : primary device(LCD)
+	 * 2 : secondary device(HDMI)
+	 * 3 : writeback 0 device(Rotator)
+	 * 4 : writeback 2 device(WFD)
+	 * 5 : fake vblank device(Standby mode)
+	 */
+	ret = drm_vblank_init(dev, DRM_KGSL_CRTC_MAX);
 	if (ret) {
 		DRM_ERROR("failed to init vblank.\n");
 		return ret;
@@ -1758,7 +1971,7 @@ static struct drm_driver driver = {
 	.patchlevel = DRIVER_PATCHLEVEL,
 };
 
-static int __devinit kgsl_drm_probe(struct platform_device *pdev)
+static int kgsl_drm_probe(struct platform_device *pdev)
 {
 	/* Only initialize once */
 	if (kgsl_drm_inited == DRM_KGSL_INITED)

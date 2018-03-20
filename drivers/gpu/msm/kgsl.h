@@ -24,7 +24,6 @@
 #include <linux/cdev.h>
 #include <linux/regulator/consumer.h>
 #include <linux/mm.h>
-#include <linux/kthread.h>
 
 /* The number of memstore arrays limits the number of contexts allowed.
  * If more contexts are needed, update multiple for MEMSTORE_SIZE
@@ -95,9 +94,6 @@ struct kgsl_driver {
 		unsigned int mapped_max;
 	} stats;
 	unsigned int full_cache_threshold;
-
-	struct kthread_worker worker;
-	struct task_struct *worker_thread;
 };
 
 extern struct kgsl_driver kgsl_driver;
@@ -224,7 +220,7 @@ struct kgsl_event {
 	void *priv;
 	struct list_head node;
 	unsigned int created;
-	struct kthread_work work;
+	struct work_struct work;
 	int result;
 	struct kgsl_event_group *group;
 };
@@ -319,20 +315,6 @@ extern const struct dev_pm_ops kgsl_pm_ops;
 
 int kgsl_suspend_driver(struct platform_device *pdev, pm_message_t state);
 int kgsl_resume_driver(struct platform_device *pdev);
-
-#ifdef CONFIG_MSM_KGSL_DRM
-extern int kgsl_drm_init(struct platform_device *dev);
-extern void kgsl_drm_exit(void);
-#else
-static inline int kgsl_drm_init(struct platform_device *dev)
-{
-	return 0;
-}
-
-static inline void kgsl_drm_exit(void)
-{
-}
-#endif
 
 static inline int kgsl_gpuaddr_in_memdesc(const struct kgsl_memdesc *memdesc,
 				unsigned int gpuaddr, size_t size)

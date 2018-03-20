@@ -307,7 +307,7 @@ EXPORT_SYMBOL(kgsl_mem_entry_destroy);
  * @returns - 0 on success else error code
  *
  * This function should be called with processes memory spinlock held
- */
+*/
 static int
 kgsl_mem_entry_track_gpuaddr(struct kgsl_process_private *process,
 				struct kgsl_mem_entry *entry)
@@ -342,7 +342,7 @@ done:
 }
 
 static void kgsl_mem_entry_commit_mem_list(struct kgsl_process_private *process,
-						struct kgsl_mem_entry *entry)
+				struct kgsl_mem_entry *entry)
 {
 	struct rb_node **node;
 	struct rb_node *parent = NULL;
@@ -369,7 +369,7 @@ static void kgsl_mem_entry_commit_mem_list(struct kgsl_process_private *process,
 }
 
 static void kgsl_mem_entry_commit_process(struct kgsl_process_private *process,
-						struct kgsl_mem_entry *entry)
+				struct kgsl_mem_entry *entry)
 {
 	if (!entry)
 		return;
@@ -4604,7 +4604,6 @@ static int _register_device(struct kgsl_device *device)
 
 int kgsl_device_platform_probe(struct kgsl_device *device)
 {
-	int result;
 	int status = -EINVAL;
 	struct resource *res;
 
@@ -4701,15 +4700,10 @@ int kgsl_device_platform_probe(struct kgsl_device *device)
 	disable_irq(device->pwrctrl.interrupt_num);
 
 	KGSL_DRV_INFO(device,
-		"dev_id %d regs phys 0x%08lx size 0x%08x\n",
+		"dev_id %d regs phys 0x%08lx size 0x%08x \n",
 		device->id, device->reg_phys, device->reg_len);
 
 	rwlock_init(&device->context_lock);
-
-	result = kgsl_drm_init(device->pdev);
-	if (result)
-		goto error_pwrctrl_close;
-
 
 	setup_timer(&device->idle_timer, kgsl_timer, (unsigned long) device);
 	status = kgsl_create_device_workqueue(device);
@@ -4810,7 +4804,6 @@ EXPORT_SYMBOL(kgsl_device_platform_remove);
 static void kgsl_core_exit(void)
 {
 	kgsl_events_exit();
-	kgsl_drm_exit();
 	kgsl_cffdump_destroy();
 	kgsl_core_debugfs_close();
 
@@ -4841,8 +4834,6 @@ static void kgsl_core_exit(void)
 static int __init kgsl_core_init(void)
 {
 	int result = 0;
-	struct sched_param param = { .sched_priority = 2 };
-
 	/* alloc major and minor device numbers */
 	result = alloc_chrdev_region(&kgsl_driver.major, 0, KGSL_DEVICE_MAX,
 		"kgsl");
@@ -4903,18 +4894,6 @@ static int __init kgsl_core_init(void)
 	INIT_LIST_HEAD(&kgsl_driver.pagetable_list);
 
 	kgsl_mmu_set_mmutype(ksgl_mmu_type);
-
-	init_kthread_worker(&kgsl_driver.worker);
-
-	kgsl_driver.worker_thread = kthread_run(kthread_worker_fn,
-		&kgsl_driver.worker, "kgsl_worker_thread");
-
-	if (IS_ERR(kgsl_driver.worker_thread)) {
-		pr_err("unable to start kgsl thread\n");
-		goto err;
-	}
-
-	sched_setscheduler(kgsl_driver.worker_thread, SCHED_FIFO, &param);
 
 	kgsl_events_init();
 
