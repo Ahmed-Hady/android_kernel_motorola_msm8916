@@ -1696,6 +1696,8 @@ static struct page *isolate_source_page(struct size_class *class)
  *
  * Based on the number of unused allocated objects calculate
  * and return the number of pages that we can free.
+ *
+ * Should be called under class->lock.
  */
 static unsigned long zs_can_compact(struct size_class *class)
 {
@@ -1781,82 +1783,6 @@ unsigned long zs_compact(struct zs_pool *pool)
 	return nr_migrated;
 }
 EXPORT_SYMBOL_GPL(zs_compact);
-
-void zs_pool_stats(struct zs_pool *pool, struct zs_pool_stats *stats)
-{
-	memcpy(stats, &pool->stats, sizeof(struct zs_pool_stats));
-}
-EXPORT_SYMBOL_GPL(zs_pool_stats);
-
-static int zs_shrinker_scan(struct shrinker *shrinker,
-		struct shrink_control *sc)
-{
-	int pages_freed;
-	struct zs_pool *pool = container_of(shrinker, struct zs_pool,
-			shrinker);
-
-	pages_freed = pool->stats.pages_compacted;
-	/*
-	 * Compact classes and calculate compaction delta.
-	 * Can run concurrently with a manually triggered
-	 * (by user) compaction.
-	 */
-	pages_freed = zs_compact(pool) - pages_freed;
-
-	return pages_freed ? pages_freed : -1;
-}
-
-static int zs_shrinker_count(struct shrinker *shrinker,
-		struct shrink_control *sc)
-{
-	int i;
-	struct size_class *class;
-	int pages_to_free = 0;
-	struct zs_pool *pool = container_of(shrinker, struct zs_pool,
-			shrinker);
-
-	if (!pool->shrinker_enabled)
-		return 0;
-
-	for (i = zs_size_classes - 1; i >= 0; i--) {
-		class = pool->size_class[i];
-		if (!class)
-			continue;
-		if (class->index != i)
-			continue;
-
-		pages_to_free += zs_can_compact(class);
-	}
-
-	return pages_to_free;
-}
-
-/*
- * Glue for legacy shrinker
- */
-static int zs_shrinker(struct shrinker *shrinker, struct shrink_control *sc)
-{
-	if (sc->nr_to_scan == 0)
-		return zs_shrinker_count(shrinker, sc);
-	return zs_shrinker_scan(shrinker, sc);
-}
-
-static void zs_unregister_shrinker(struct zs_pool *pool)
-{
-	if (pool->shrinker_enabled) {
-		unregister_shrinker(&pool->shrinker);
-		pool->shrinker_enabled = false;
-	}
-}
-
-static void zs_register_shrinker(struct zs_pool *pool)
-{
-	pool->shrinker.shrink = zs_shrinker;
-	pool->shrinker.batch = 0;
-	pool->shrinker.seeks = DEFAULT_SEEKS;
-
-	register_shrinker(&pool->shrinker);
-}
 
 /**
  * zs_create_pool - Creates an allocation pool to work from.
