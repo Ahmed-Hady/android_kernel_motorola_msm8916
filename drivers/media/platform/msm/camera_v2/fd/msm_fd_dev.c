@@ -990,7 +990,7 @@ static int msm_fd_s_ctrl(struct file *file, void *fh, struct v4l2_control *a)
 			a->value = ctx->format.size->work_size;
 		break;
 	case V4L2_CID_FD_WORK_MEMORY_FD:
-		mutex_lock(&ctx->fd_device->recovery_lock);
+                mutex_lock(&ctx->fd_device->recovery_lock);
 		if (ctx->work_buf.handle)
 			msm_fd_hw_unmap_buffer(&ctx->work_buf);
 

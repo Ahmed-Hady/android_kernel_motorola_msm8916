@@ -143,7 +143,7 @@ static int msm_comm_get_mbs_per_sec(struct msm_vidc_inst *inst)
 	ctrl.id = V4L2_CID_MPEG_VIDC_VIDEO_OPERATING_RATE;
 	rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
 	if (!rc && ctrl.value) {
-		fps = (ctrl.value >> 16) ? ctrl.value >> 16 : 1;
+		fps = (ctrl.value >> 16)? ctrl.value >> 16: 1;
 		return max(output_port_mbs, capture_port_mbs) * fps;
 	} else
 		return max(output_port_mbs, capture_port_mbs) * inst->prop.fps;
@@ -189,7 +189,7 @@ static int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 	int load = 0;
 
 	if (!(inst->state >= MSM_VIDC_OPEN_DONE &&
-		inst->state < MSM_VIDC_STOP_DONE))
+			inst->state < MSM_VIDC_STOP_DONE))
 		return 0;
 
 	load = msm_comm_get_mbs_per_sec(inst);
@@ -207,9 +207,7 @@ static int msm_comm_get_inst_load(struct msm_vidc_inst *inst,
 	if (is_non_realtime_session(inst) &&
 		(quirks & LOAD_CALC_IGNORE_NON_REALTIME_LOAD)) {
 		if (!inst->prop.fps) {
-			dprintk(VIDC_INFO,
-				"%s: instance:%pK prop->fps is set 0\n",
-				__func__, inst);
+			dprintk(VIDC_INFO, "%s: instance:%pK prop->fps is set 0\n", __func__, inst);
 			load = 0;
 		} else
 			load = msm_comm_get_mbs_per_sec(inst) / inst->prop.fps;
@@ -761,24 +759,24 @@ static void handle_event_change(enum command_response cmd, void *data)
 				__func__, inst, &event_notify->packet_buffer,
 				&event_notify->extra_data_buffer);
 
-		/*
-		* If buffer release event is received with inst->state
-		* greater than STOP means client called STOP directly
-		* without FLUSH. This also means that they don't expect
-		* these buffers back. Processing these commands will not
-		* add any value. This can also results deadlocks between
-		* try_state and event_notify due to inst->sync_lock.
-		*/
+			/*
+			* If buffer release event is received with inst->state
+			* greater than STOP means client called STOP directly
+			* without FLUSH. This also means that they don't expect
+			* these buffers back. Processing these commands will not
+			* add any value. This can also results deadlocks between
+			* try_state and event_notify due to inst->sync_lock.
+			*/
 
-		mutex_lock(&inst->lock);
-		if (inst->state >= MSM_VIDC_STOP ||
-			inst->core->state == VIDC_CORE_INVALID) {
-			dprintk(VIDC_ERR,
-				"Event release buf ref received in invalid state - discard\n");
-			mutex_unlock(&inst->lock);
+			mutex_lock(&inst->lock);
+			if (inst->state >= MSM_VIDC_STOP ||
+				inst->core->state == VIDC_CORE_INVALID) {
+				dprintk(VIDC_ERR,
+					"Event release buf ref received in invalid state - discard\n");
+				mutex_unlock(&inst->lock);
 				return;
 			}
-		mutex_unlock(&inst->lock);
+			mutex_unlock(&inst->lock);
 
 			/*
 			* Get the buffer_info entry for the

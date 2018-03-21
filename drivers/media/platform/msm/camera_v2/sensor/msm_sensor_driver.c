@@ -1180,6 +1180,12 @@ int32_t msm_sensor_driver_probe(void *setting,
 				slave_info->sensor_name);
 	}
 	/*
+	  Set probe succeeded flag to 1 so that no other camera shall
+	 * probed on this slot
+	 */
+	s_ctrl->is_probe_succeed = 1;
+
+	/*
 	 * Update the subdevice id of flash-src based on availability in kernel.
 	 */
 	if (slave_info->is_flash_supported == 0) {

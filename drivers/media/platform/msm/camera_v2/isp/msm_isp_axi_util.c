@@ -1413,7 +1413,7 @@ int msm_isp_axi_reset(struct vfe_device *vfe_dev,
 	struct msm_isp_bufq *bufq = NULL;
 
 	if (!reset_cmd) {
-		pr_err("%s: NULL pointer reset cmd %pK\n", __func__, reset_cmd);
+		pr_err("%s: NULL pointer reset cmd %p\n", __func__, reset_cmd);
 		rc = -1;
 		return rc;
 	}
@@ -1438,7 +1438,7 @@ int msm_isp_axi_reset(struct vfe_device *vfe_dev,
 		bufq = vfe_dev->buf_mgr->ops->get_bufq(vfe_dev->buf_mgr,
 			stream_info->bufq_handle);
 		if (!bufq) {
-			pr_err("%s: bufq null %pK by handle %x\n", __func__,
+			pr_err("%s: bufq null %p by handle %x\n", __func__,
 				bufq, stream_info->bufq_handle);
 			continue;
 		}
@@ -1575,7 +1575,7 @@ static int msm_isp_start_axi_stream(struct vfe_device *vfe_dev,
 		if (SRC_TO_INTF(stream_info->stream_src) != VFE_PIX_0 &&
 			stream_info->stream_src < VFE_AXI_SRC_MAX) {
 			vfe_dev->axi_data.src_info[SRC_TO_INTF(
-				stream_info->stream_src)].frame_id = 0;
+				stream_info->stream_src)].frame_id = init_frm_drop;
 		}
 	}
 	msm_isp_update_stream_bandwidth(vfe_dev);
@@ -1590,13 +1590,6 @@ static int msm_isp_start_axi_stream(struct vfe_device *vfe_dev,
 		vfe_dev->hw_info->vfe_ops.core_ops.
 			update_camif_state(vfe_dev, camif_update);
 	}
-
-	if (vfe_dev->axi_data.src_info[VFE_RAW_0].raw_stream_count > 0)
-		vfe_dev->axi_data.src_info[VFE_RAW_0].frame_id = init_frm_drop;
-	if (vfe_dev->axi_data.src_info[VFE_RAW_1].raw_stream_count > 0)
-		vfe_dev->axi_data.src_info[VFE_RAW_1].frame_id = init_frm_drop;
-	if (vfe_dev->axi_data.src_info[VFE_RAW_2].raw_stream_count > 0)
-		vfe_dev->axi_data.src_info[VFE_RAW_2].frame_id = init_frm_drop;
 
 	if (wait_for_complete) {
 		vfe_dev->axi_data.stream_update = stream_cfg_cmd->num_streams;

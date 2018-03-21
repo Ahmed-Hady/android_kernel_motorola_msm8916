@@ -41,6 +41,11 @@ struct addr_range {
 	u32 size;
 };
 
+struct addr_set {
+	struct addr_range *addr_tbl;
+	int count;
+};
+
 struct iommu_info {
 	const char *name;
 	u32 buffer_type[MAX_BUFFER_TYPES];
@@ -110,6 +115,7 @@ struct msm_vidc_platform_resources {
 	struct load_freq_table *load_freq_tbl;
 	uint32_t load_freq_tbl_size;
 	struct reg_set reg_set;
+	struct addr_set qdss_addr_set;
 	struct iommu_set iommu_group_set;
 	struct buffer_usage_set buffer_usage_set;
 	uint32_t ocmem_size;
@@ -123,6 +129,7 @@ struct msm_vidc_platform_resources {
 	bool sw_power_collapsible;
 	bool sys_idle_indicator;
 	bool early_fw_load;
+	uint32_t pm_qos_latency_us;
 };
 
 static inline int is_iommu_present(struct msm_vidc_platform_resources *res)
