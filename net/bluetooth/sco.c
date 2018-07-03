@@ -454,14 +454,14 @@ static int sco_sock_bind(struct socket *sock, struct sockaddr *addr, int alen)
 {
 	struct sockaddr_sco sa;
 	struct sock *sk = sock->sk;
-	int len, err = 0;
+	int err = 0;
 
 	BT_DBG("sk %pK %pMR", sk, &sa.sco_bdaddr);
 
 	if (!addr || addr->sa_family != AF_BLUETOOTH)
 		return -EINVAL;
 
-	if (addr_len < sizeof(struct sockaddr_sco))
+	if (alen < sizeof(struct sockaddr_sco))
 		return -EINVAL;
 
 	lock_sock(sk);
