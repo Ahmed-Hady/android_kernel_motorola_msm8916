@@ -834,6 +834,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	mfd->bl_min_lvl = 30;
 	mfd->ad_bl_level = 0;
 	mfd->fb_imgType = MDP_RGBA_8888;
+	mfd->calib_mode_bl = 0;
 
 	if (mfd->panel_info->cont_splash_enabled) {
 		mfd->bl_updated = true;
@@ -1324,6 +1325,25 @@ static int mdss_fb_unblank_sub(struct msm_fb_data_type *mfd)
 				msecs_to_jiffies(mfd->idle_time));
 	}
 
+	/* Reset the backlight only if the panel was off */
+	if (mdss_panel_is_power_off(cur_power_state)) {
+		mutex_lock(&mfd->bl_lock);
+		if (!mfd->bl_updated) {
+			mfd->bl_updated = 1;
+			/*
+			 * If in AD calibration mode then frameworks would not
+			 * be allowed to update backlight hence post unblank
+			 * the backlight would remain 0 (0 is set in blank).
+			 * Hence resetting back to calibration mode value
+			 */
+			if (!IS_CALIB_MODE_BL(mfd))
+				mdss_fb_set_backlight(mfd, mfd->unset_bl_level);
+			else
+				mdss_fb_set_backlight(mfd, mfd->calib_mode_bl);
+		}
+		mutex_unlock(&mfd->bl_lock);
+	}
+
 error:
 	return ret;
 }
@@ -1403,19 +1423,21 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 			complete(&mfd->no_update.comp);
 
 			mfd->op_enable = false;
-			mutex_lock(&mfd->bl_lock);
 			if (mdss_panel_is_power_off(req_power_state)) {
 				/* Stop Display thread */
 				if (mfd->disp_thread)
 					mdss_fb_stop_disp_thread(mfd);
+				mutex_lock(&mfd->bl_lock);
 
 				if (mfd->bl_updated)
 					bl_level_old = mfd->bl_level;
 				else
 					bl_level_old = mfd->unset_bl_level;
+
 				mdss_fb_set_backlight(mfd, 0);
 				mfd->unset_bl_level = bl_level_old;
 				mfd->bl_updated = 0;
+				mutex_unlock(&mfd->bl_lock);
 
 				if (mfd->shutdown_pending &&
 					mfd->panel_info->bl_shutdown_delay)
@@ -1426,7 +1448,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 					* 1000);
 			}
 			mfd->panel_power_state = req_power_state;
-			mutex_unlock(&mfd->bl_lock);
 
 			ret = mfd->mdp.off_fnc(mfd);
 			if (ret)
@@ -2235,7 +2256,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
 	struct mdss_fb_proc_info *pinfo = NULL, *temp_pinfo = NULL;
 	struct mdss_fb_proc_info *proc_info = NULL;
-	int ret = 0;
+	int ret = 0, ad_ret = 0;
 	int pid = current->tgid;
 	bool unknown_pid = true, release_needed = false;
 	struct task_struct *task = current->group_leader;
@@ -2263,7 +2284,7 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		unknown_pid = false;
 
 		pr_debug("found process %s pid=%d mfd->ref=%d pinfo->ref=%d\n",
-			task->comm, mfd->ref_cnt, pinfo->pid, pinfo->ref_cnt);
+			task->comm, pinfo->pid, mfd->ref_cnt, pinfo->ref_cnt);
 
 		proc_info = mdss_fb_release_file_entry(info, pinfo,
 								release_all);
@@ -2287,10 +2308,6 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 			pinfo->ref_cnt--;
 			pm_runtime_put(info->dev);
 		} while (release_all && pinfo->ref_cnt);
-
-		/* we need to stop display thread before release */
-		if (release_all && mfd->disp_thread)
-			mdss_fb_stop_disp_thread(mfd);
 
 		if (pinfo->ref_cnt == 0) {
 			list_del(&pinfo->list);
@@ -2322,30 +2339,17 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 		}
 	}
 
-	if (release_needed) {
-		pr_debug("current process=%s pid=%d known pid=%d mfd->ref=%d\n",
-			task->comm, current->tgid, pid, mfd->ref_cnt);
+	if (!mfd->ref_cnt || release_all) {
+		/* resources (if any) will be released during blank */
+		if (mfd->mdp.release_fnc)
+			mfd->mdp.release_fnc(mfd, true, pid);
 
-		if (mfd->mdp.release_fnc) {
-			ret = mfd->mdp.release_fnc(mfd, false, pid);
-			if (ret)
-				pr_err("error releasing fb%d for current pid=%d known pid=%d\n",
-					mfd->index, current->tgid, pid);
+		if (mfd->mdp.ad_shutdown_cleanup) {
+			ad_ret = (*mfd->mdp.ad_shutdown_cleanup)(mfd);
+			if (ad_ret)
+				pr_err("AD shutdown cleanup failed ret = %d\n",
+									ad_ret);
 		}
-	} else if (release_all && mfd->ref_cnt) {
-		pr_err("reference count mismatch with proc list entries\n");
-	}
-
-	if (!mfd->ref_cnt) {
-		if (mfd->mdp.release_fnc) {
-			ret = mfd->mdp.release_fnc(mfd, true, pid);
-			if (ret)
-				pr_err("error fb%d release current process=%s pid=%d known pid=%d\n",
-				    mfd->index, task->comm, current->tgid, pid);
-		}
-
-		if (mfd->fb_ion_handle)
-			mdss_fb_free_fb_ion_memory(mfd);
 
 		ret = mdss_fb_blank_sub(FB_BLANK_POWERDOWN, info,
 			mfd->op_enable);
@@ -2354,7 +2358,22 @@ static int mdss_fb_release_all(struct fb_info *info, bool release_all)
 			      mfd->index, ret, task->comm, current->tgid, pid);
 			return ret;
 		}
+
+		if (mfd->fb_ion_handle)
+			mdss_fb_free_fb_ion_memory(mfd);
+
 		atomic_set(&mfd->ioctl_ref_cnt, 0);
+	} else if (release_needed) {
+		pr_debug("current process=%s pid=%d known pid=%d mfd->ref=%d\n",
+			task->comm, current->tgid, pid, mfd->ref_cnt);
+
+		if (mfd->mdp.release_fnc) {
+			ret = mfd->mdp.release_fnc(mfd, false, pid);
+
+			/* display commit is needed to release resources */
+			if (ret)
+				mdss_fb_pan_display(&mfd->fbi->var, mfd->fbi);
+		}
 	}
 
 	return ret;
@@ -2904,7 +2923,7 @@ static int mdss_fb_check_var(struct fb_var_screeninfo *var,
 		int rc;
 
 		memcpy(&mfd->reconfig_panel_info, mfd->panel_info,
-			sizeof(mfd->reconfig_panel_info));
+				sizeof(mfd->reconfig_panel_info));
 		mdss_fb_var_to_panelinfo(var, &mfd->reconfig_panel_info);
 		rc = mdss_fb_send_panel_event(mfd, MDSS_EVENT_CHECK_PARAMS,
 			&mfd->reconfig_panel_info);

@@ -87,6 +87,7 @@ struct mmc_ios {
 /* states to represent load on the host */
 enum mmc_load {
 	MMC_LOAD_HIGH,
+	MMC_LOAD_INIT,
 	MMC_LOAD_LOW,
 };
 
@@ -491,6 +492,7 @@ struct mmc_host {
 	unsigned long long	requests;	/* cumulative number of requests */
 	unsigned long long	request_errors;	/* cumulative number of request errors */
 
+	bool			wakeup_on_idle;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
