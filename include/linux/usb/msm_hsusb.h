@@ -307,14 +307,11 @@ struct msm_otg_platform_data {
 	bool disable_retention_with_vdd_min;
 	int usb_id_gpio;
 	bool phy_dvdd_always_on;
-<<<<<<< HEAD
 	bool mpp_id_routing;
 	unsigned int mpp_id_amux_chan;
 	unsigned int mpp_id_pull;
 	unsigned int mpp_id_vin;
-=======
 	struct clk *system_clk;
->>>>>>> f1030fc5221a8f8c5cecf36ecc4dd7228e9da69e
 };
 
 /* phy related flags */

@@ -187,15 +187,10 @@ struct sdhci_host {
  * the bounce buffer logic when preparing data
  */
 #define SDHCI_QUIRK2_ADMA_SKIP_DATA_ALIGNMENT             (1<<13)
-<<<<<<< HEAD
 /* Some controllers doesn't have have any LED control */
 #define SDHCI_QUIRK2_BROKEN_LED_CONTROL	(1 << 14)
 /* Use reset workaround in case sdhci reset timeouts */
 #define SDHCI_QUIRK2_USE_RESET_WORKAROUND (1 << 15)
-=======
-/* Use reset workaround in case sdhci reset timeouts */
-#define SDHCI_QUIRK2_USE_RESET_WORKAROUND (1 << 14)
->>>>>>> f1030fc5221a8f8c5cecf36ecc4dd7228e9da69e
 
 	int irq;		/* Device IRQ */
 	void __iomem *ioaddr;	/* Mapped address */
