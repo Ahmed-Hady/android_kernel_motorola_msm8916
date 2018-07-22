@@ -1296,9 +1296,6 @@ static int _adreno_start(struct adreno_device *adreno_dev)
 
 	status = adreno_perfcounter_start(adreno_dev);
 
-	if (status)
-		goto error_irq_off;
-
 	status = adreno_ringbuffer_cold_start(adreno_dev);
 
 	if (status)

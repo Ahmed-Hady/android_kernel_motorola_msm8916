@@ -3342,20 +3342,12 @@ static struct clk_lookup msm_clocks_lookup[] = {
 	CLK_LIST(gcc_snoc_qosgen_clk),
 };
 
-static struct clk_lookup msm_clocks_lookup_v1[] = {
-	CLK_LIST(gcc_oxili_gmem_clk),
-};
-
 static struct clk_lookup msm_clocks_lookup_v3[] = {
 	CLK_LIST(gcc_oxili_gmem_gate_clk),
 };
 
 static struct clk_lookup msm_clocks_lookup_v1[] = {
 	CLK_LIST(gcc_oxili_gmem_clk),
-};
-
-static struct clk_lookup msm_clocks_lookup_v3[] = {
-	CLK_LIST(gcc_oxili_gmem_gate_clk),
 };
 
 /* Please note that the order of reg-names is important */
