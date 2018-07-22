@@ -3915,8 +3915,8 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		sdhci_writel(host, sdhci_caps, CORE_VENDOR_SPEC_CAPABILITIES1);
 	}
 
-	host->cpu_dma_latency_us = msm_host->pdata->cpu_dma_latency_us;
-	host->pm_qos_req_dma.type = msm_host->pdata->cpu_affinity_type;
+	//host->cpu_dma_latency_us = msm_host->pdata->cpu_dma_latency_us;
+	//host->pm_qos_req_dma.type = msm_host->pdata->cpu_affinity_type;
 
 	init_completion(&msm_host->pwr_irq_completion);
 

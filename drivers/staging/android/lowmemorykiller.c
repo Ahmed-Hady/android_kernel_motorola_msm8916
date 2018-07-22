@@ -47,8 +47,8 @@
 #include <linux/show_mem_notifier.h>
 #include <linux/vmpressure.h>
 
-#define CREATE_TRACE_POINTS
-#include <trace/events/almk.h>
+//#define CREATE_TRACE_POINTS
+//#include <trace/events/almk.h>
 
 #include <trace/events/memkill.h>
 
@@ -145,7 +145,7 @@ static int lmk_vmpressure_notifier(struct notifier_block *nb,
 		other_free = global_page_state(NR_FREE_PAGES);
 
 		atomic_set(&shift_adj, 1);
-		trace_almk_vmpressure(pressure, other_free, other_file);
+		//trace_almk_vmpressure(pressure, other_free, other_file);
 	} else if (pressure >= 90) {
 		if (lowmem_adj_size < array_size)
 			array_size = lowmem_adj_size;
@@ -161,8 +161,8 @@ static int lmk_vmpressure_notifier(struct notifier_block *nb,
 		if ((other_free < lowmem_minfree[array_size - 1]) &&
 			(other_file < vmpressure_file_min)) {
 				atomic_set(&shift_adj, 1);
-				trace_almk_vmpressure(pressure, other_free,
-					other_file);
+				//trace_almk_vmpressure(pressure, other_free,
+				//	other_file);
 		}
 	}
 
@@ -465,7 +465,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 
 		if ((min_score_adj == OOM_SCORE_ADJ_MAX + 1) &&
 			(nr_to_scan > 0))
-			trace_almk_shrink(0, ret, other_free, other_file, 0);
+			//trace_almk_shrink(0, ret, other_free, other_file, 0);
 
 		return rem;
 	}
@@ -616,19 +616,19 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 					zall[i][j].free,
 					zall[i][j].file);
 
-		trace_lmk_kill(selected->pid, selected->comm,
+		/*trace_lmk_kill(selected->pid, selected->comm,
 				selected_oom_score_adj, selected_tasksize,
 				min_score_adj, sc->gfp_mask, zinfo);
 		send_sig(SIGKILL, selected, 0);
 		set_tsk_thread_flag(selected, TIF_MEMDIE);
 		rem -= selected_tasksize;
-		rcu_read_unlock();
+		rcu_read_unlock();*/
 		/* give the system time to free up the memory */
 		msleep_interruptible(20);
-		trace_almk_shrink(selected_tasksize, ret,
-			other_free, other_file, selected_oom_score_adj);
+		/*trace_almk_shrink(selected_tasksize, ret,
+			other_free, other_file, selected_oom_score_adj);*/
 	} else {
-		trace_almk_shrink(1, ret, other_free, other_file, 0);
+		//trace_almk_shrink(1, ret, other_free, other_file, 0);
 		rcu_read_unlock();
 	}
 
