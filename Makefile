@@ -3,7 +3,7 @@ PATCHLEVEL = 10
 SUBLEVEL = 49
 EXTRAVERSION =
 NAME = TOSSUG Baby Fish
-CAF = LA.BR.1.1.3-01510-8x16.0
+CAF = LA.BR.1.1.3-01810-8x16.0
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
