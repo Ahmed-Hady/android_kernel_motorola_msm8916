@@ -337,7 +337,6 @@ struct sdhci_msm_pltfm_data {
 	u32 *cpu_dma_latency_us;
 	unsigned int cpu_dma_latency_tbl_sz;
 	u8 drv_types;
-	u32 *cpu_dma_latency_us;
 	int status_gpio; /* card detection GPIO that is configured as IRQ */
 	struct sdhci_msm_bus_voting_data *voting_data;
 	u32 *sup_clk_table;
@@ -1663,122 +1662,6 @@ out:
 static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 				struct sdhci_host *host)
 {
-	struct device_node *np = dev->of_node;
-	u32 drv_types = 0;
-	u32 prop_val = 0;
-	bool skip_qos_from_dt = false;
-	int qos_planes = 0, i;
-	char *qos_planes_name[SDHCI_QOS_MAX_POLICY] = {
-			"qcom,cpu-dma-latency-us",
-			"qcom,cpu-dma-latency-us-r",
-			"qcom,cpu-dma-latency-us-w"};
-	char *qos_affinity_name[SDHCI_QOS_MAX_POLICY] = {
-			"qcom,cpu-affinity",
-			"qcom,cpu-affinity-r",
-			"qcom,cpu-affinity-w"};
-	char *qos_affinity_mask[SDHCI_QOS_MAX_POLICY] = {
-			"qcom,cpu-affinity-mask",
-			"qcom,cpu-affinity-mask-r",
-			"qcom,cpu-affinity-mask-w"};
-
-	if (of_property_read_u32(np, "qcom,qos-planes", &qos_planes))
-			qos_planes = SDHCI_QOS_MAX_POLICY;
-
-	if (qos_planes > SDHCI_QOS_MAX_POLICY)
-		goto out;
-	}
-
-	pdata->status_gpio = of_get_named_gpio_flags(np, "cd-gpios", 0, &flags);
-	if (gpio_is_valid(pdata->status_gpio) & !(flags & OF_GPIO_ACTIVE_LOW))
-		pdata->caps2 |= MMC_CAP2_CD_ACTIVE_HIGH;
-
-	of_property_read_u32(np, "qcom,bus-width", &bus_width);
-	if (bus_width == 8)
-		pdata->mmc_bus_width = MMC_CAP_8_BIT_DATA;
-	else if (bus_width == 4)
-		pdata->mmc_bus_width = MMC_CAP_4_BIT_DATA;
-	else {
-		dev_notice(dev, "invalid bus-width, default to 1-bit mode\n");
-		pdata->mmc_bus_width = 0;
-	}
-	if (sdhci_msm_populate_qos(dev, pdata, host))
-		goto out;
-
-	of_property_read_u32(np, "qcom,drv-types", &drv_types);
-#if defined(CONFIG_MMC_SDHCI_MSM_DEBUG)
-	if (debug_drv_types)
-		drv_types = debug_drv_types;
-#endif
-	if (drv_types) {
-		if (drv_types & MMC_DRIVER_TYPE_1)
-			pdata->caps |= MMC_CAP_DRIVER_TYPE_A;
-		if (drv_types & MMC_DRIVER_TYPE_2)
-			pdata->caps |= MMC_CAP_DRIVER_TYPE_C;
-		if (drv_types & MMC_DRIVER_TYPE_3)
-			pdata->caps |= MMC_CAP_DRIVER_TYPE_D;
-		if (drv_types & MMC_DRIVER_TYPE_4)
-			pdata->caps2 |= MMC_CAP2_DRIVER_TYPE_4;
-
-		/* More caps bits may be set by sdhci, so don't forget. */
-		pdata->drv_types = drv_types;
-	}
-
-	for (i = 0; i < qos_planes; i++) {
-		if (of_get_property(np, qos_planes_name[i],
-					&prop_val)) {
-					
-			pdata->cpu_dma_latency_tbl_sz =
-				prop_val/sizeof(*pdata->cpu_dma_latency_us);
-
-			if (!(pdata->cpu_dma_latency_tbl_sz == 1 ||
-				pdata->cpu_dma_latency_tbl_sz == 3)) {
-				dev_warn(dev, "incorrect Qos param passed from DT: %d\n",
-					pdata->cpu_dma_latency_tbl_sz);
-				skip_qos_from_dt = true;
-			} else {
-				pdata->cpu_dma_latency_us = devm_kzalloc(dev,
-					sizeof(*pdata->cpu_dma_latency_us) *
-					pdata->cpu_dma_latency_tbl_sz,
-					GFP_KERNEL);
-				if (!pdata->cpu_dma_latency_us)
-					goto out;
-				if (of_property_read_u32_array(np,
-						qos_planes_name[i],
-						pdata->cpu_dma_latency_us,
-						pdata->cpu_dma_latency_tbl_sz)) {
-					dev_err(dev, "failed to parse cpu-dma-latency\n");
-					goto out;
-				}
-			}
-			} else {
-				dev_info(dev, "no %s property found\n",
-						qos_planes_name[i]);
-				skip_qos_from_dt = true;
-			}
-
-		if (skip_qos_from_dt) {
-			pdata->cpu_dma_latency_tbl_sz = 1;
-			pdata->cpu_dma_latency_us = devm_kzalloc(dev,
-				sizeof(*pdata->cpu_dma_latency_us) *
-				pdata->cpu_dma_latency_tbl_sz,
-				GFP_KERNEL);
-			if (!pdata->cpu_dma_latency_us)
-				goto out;
-			pdata->cpu_dma_latency_us[0] = MSM_MMC_DEFAULT_CPU_DMA_LATENCY;
-		}
-		sdhci_msm_populate_affinity(pdata, np,
-				qos_affinity_name[i], qos_affinity_mask[i]);
-		sdhci_msm_update_host_qos_data(pdata, host, i);
-	}
-
-	return 0;
-out:
-	return -EINVAL;
-}
-/* Parse platform data */
-static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
-				struct sdhci_host *host)
-{
 	struct sdhci_msm_pltfm_data *pdata = NULL;
 	struct device_node *np = dev->of_node;
 	u32 bus_width = 0;
@@ -1911,11 +1794,6 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 		pdata->mpm_sdiowakeup_int = mpm_int;
 	else
 		pdata->mpm_sdiowakeup_int = -1;
-
-	if (of_property_read_bool(np, "qcom,wakeup-on-idle"))
-		host->mmc->wakeup_on_idle = true;
-
-	sdhci_msm_populate_affinity(pdata, np);
 
 	if (of_get_property(np, "qcom,emmc", NULL))
 		pdata->is_emmc = true;
@@ -3382,47 +3260,6 @@ void sdhci_msm_dump_vendor_regs(struct sdhci_host *host)
 			CORE_TESTBUS_CONFIG);
 }
 
-void sdhci_msm_reset_workaround(struct sdhci_host *host, u32 enable)
-{
-	u32 vendor_func2;
-	unsigned long timeout;
-
-	vendor_func2 = readl_relaxed(host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
-
-	if (enable) {
-		writel_relaxed(vendor_func2 | HC_SW_RST_REQ, host->ioaddr +
-				CORE_VENDOR_SPEC_FUNC2);
-		timeout = 10000;
-		while (readl_relaxed(host->ioaddr + CORE_VENDOR_SPEC_FUNC2) &
-				HC_SW_RST_REQ) {
-			if (timeout == 0) {
-				pr_info("%s: Applying wait idle disable workaround\n",
-					mmc_hostname(host->mmc));
-				/*
-				 * Apply the reset workaround to not wait for
-				 * pending data transfers on AXI before
-				 * resetting the controller. This could be
-				 * risky if the transfers were stuck on the
-				 * AXI bus.
-				 */
-				vendor_func2 = readl_relaxed(host->ioaddr +
-						CORE_VENDOR_SPEC_FUNC2);
-				writel_relaxed(vendor_func2 |
-					HC_SW_RST_WAIT_IDLE_DIS,
-					host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
-				host->reset_wa_t = ktime_get();
-				return;
-			}
-			timeout--;
-			udelay(10);
-		}
-		pr_info("%s: waiting for SW_RST_REQ is successful\n",
-				mmc_hostname(host->mmc));
-	} else {
-		writel_relaxed(vendor_func2 & ~HC_SW_RST_WAIT_IDLE_DIS,
-				host->ioaddr + CORE_VENDOR_SPEC_FUNC2);
-	}
-}
 #if defined(CONFIG_MMC_SDHCI_MSM_DEBUG)
 static char *debugfs_pull[] = {
 	"pad_pull_clk", "pad_pull_cmd", "pad_pull_dat", "pad_pull_rclk", NULL };

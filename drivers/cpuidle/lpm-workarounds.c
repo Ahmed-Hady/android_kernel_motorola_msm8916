@@ -30,7 +30,6 @@
 
 static struct work_struct lpm_wa_work;
 static struct workqueue_struct *lpm_wa_wq;
-static bool lpm_wa_cx_turbo_unvote;
 static bool skip_l2_spm;
 static bool enable_dynamic_clock_gating;
 static bool is_l1_l2_gcc_secure;
@@ -139,12 +138,6 @@ static void process_lpm_workarounds(struct work_struct *w)
 		unregister_hotcpu_notifier(&lpm_wa_nblk);
 	}
 }
-
-bool lpm_wa_get_skip_l2_spm(void)
-{
-	return skip_l2_spm;
-}
-EXPORT_SYMBOL(lpm_wa_get_skip_l2_spm);
 
 static ssize_t store_clock_gating_enabled(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
