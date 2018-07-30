@@ -3,6 +3,7 @@ PATCHLEVEL = 10
 SUBLEVEL = 49
 EXTRAVERSION =
 NAME = TOSSUG Baby Fish
+CAF = LA.BR.1.1.3-01510-8x16.0
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
@@ -388,8 +389,9 @@ KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 KERNELVERSION = $(VERSION)$(if $(PATCHLEVEL),.$(PATCHLEVEL)$(if $(SUBLEVEL),.$(SUBLEVEL)))$(EXTRAVERSION)
+CAFVERSION = $(CAF)
 
-export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION
+export VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION CAFVERSION
 export ARCH SRCARCH CONFIG_SHELL HOSTCC HOSTCFLAGS CROSS_COMPILE AS LD CC
 export CPP AR NM STRIP OBJCOPY OBJDUMP
 export MAKE AWK GENKSYMS INSTALLKERNEL PERL UTS_MACHINE
@@ -458,7 +460,8 @@ version_h := include/generated/uapi/linux/version.h
 no-dot-config-targets := clean mrproper distclean \
 			 cscope gtags TAGS tags help %docs check% coccicheck \
 			 $(version_h) headers_% archheaders archscripts \
-			 kernelversion %src-pkg
+			 kernelversion %src-pkg \
+			 cafversion %src-pkg
 
 config-targets := 0
 mixed-targets  := 0
@@ -1136,6 +1139,7 @@ help:
 	@echo  '  gtags           - Generate GNU GLOBAL index'
 	@echo  '  kernelrelease	  - Output the release version string'
 	@echo  '  kernelversion	  - Output the version stored in Makefile'
+	@echo  '  cafversion	  - Output the CAF version stored in Makefile'
 	@echo  '  headers_install - Install sanitised kernel headers to INSTALL_HDR_PATH'; \
 	 echo  '                    (default: $(INSTALL_HDR_PATH))'; \
 	 echo  ''
@@ -1330,7 +1334,7 @@ export_report:
 endif #ifeq ($(config-targets),1)
 endif #ifeq ($(mixed-targets),1)
 
-PHONY += checkstack kernelrelease kernelversion
+PHONY += checkstack kernelrelease kernelversion cafversion
 
 # UML needs a little special treatment here.  It wants to use the host
 # toolchain, so needs $(SUBARCH) passed to checkstack.pl.  Everyone
@@ -1350,6 +1354,9 @@ kernelrelease:
 
 kernelversion:
 	@echo $(KERNELVERSION)
+
+cafversion:
+	@echo $(CAFVERSION)
 
 # Clear a bunch of variables before executing the submake
 tools/: FORCE
