@@ -1220,7 +1220,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_sync(dapm);
 
 #ifdef CONFIG_SND_SOC_FSA8500
-	//ret = fsa8500_hs_detect(codec);
+	ret = fsa8500_hs_detect(codec);
 	if (!ret) {
 		pr_info("%s:fsa8500 hs det mechanism is used\n", __func__);
 	} else {
