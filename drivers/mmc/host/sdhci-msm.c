@@ -1643,8 +1643,6 @@ static struct sdhci_msm_pltfm_data *sdhci_msm_populate_pdata(struct device *dev,
 	struct device_node *np = dev->of_node;
 	u32 bus_width = 0;
 	u32 drv_types = 0;
-	u32 cpu_dma_latency;
-	u32 prop_val = 0;
 	int len, i, mpm_int;
 	int clk_table_len;
 	u32 *clk_table = NULL;
