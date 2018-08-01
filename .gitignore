@@ -92,4 +92,12 @@ signing_key.priv
 signing_key.x509
 x509.genkey
 
+#
+# Other types
+#
 out/
+OUT/
+tags
+log
+LOG
+diff
