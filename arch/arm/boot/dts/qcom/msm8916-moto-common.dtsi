@@ -12,7 +12,12 @@
 
 /memreserve/ 0xaf000000 0x00080000;
 
+#ifdef CONFIG_SEP_VENDOR
+#include "msm8916_sep_vendor.dtsi"
+#else
 #include "msm8916.dtsi"
+#endif
+
 #include "msm8916-memory.dtsi"
 #include "msm8916-pinctrl.dtsi"
 #include "dsi-panel-mot-dummy-qhd-video.dtsi"
