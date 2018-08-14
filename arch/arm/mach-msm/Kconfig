@@ -1128,4 +1128,9 @@ config HAS_MACH_MEMUTILS
 	bool "Motorola MSM memcpy enhancements"
 	help
 	Faster memcpy performance for MSM8916.
+
+config SEP_VENDOR
+	bool "MSM separate vendor support for treble purposes"
+	help
+	MSM separate vendor support for treble purposes.
 endif
