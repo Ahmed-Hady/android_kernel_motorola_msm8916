@@ -1150,16 +1150,6 @@ static void packet_sock_destruct(struct sock *sk)
 	sk_refcnt_debug_dec(sk);
 }
 
-static int fanout_rr_next(struct packet_fanout *f, unsigned int num)
-{
-	int x = atomic_read(&f->rr_cur) + 1;
-
-	if (x >= num)
-		x = 0;
-
-	return x;
-}
-
 static unsigned int fanout_demux_hash(struct packet_fanout *f,
 				      struct sk_buff *skb,
 				      unsigned int num)
@@ -1171,13 +1161,9 @@ static unsigned int fanout_demux_lb(struct packet_fanout *f,
 				    struct sk_buff *skb,
 				    unsigned int num)
 {
-	int cur, old;
+	unsigned int val = atomic_inc_return(&f->rr_cur);
 
-	cur = atomic_read(&f->rr_cur);
-	while ((old = atomic_cmpxchg(&f->rr_cur, cur,
-				     fanout_rr_next(f, num))) != cur)
-		cur = old;
-	return cur;
+	return val % num;
 }
 
 static unsigned int fanout_demux_cpu(struct packet_fanout *f,
@@ -1217,7 +1203,7 @@ static int packet_rcv_fanout(struct sk_buff *skb, struct net_device *dev,
 			     struct packet_type *pt, struct net_device *orig_dev)
 {
 	struct packet_fanout *f = pt->af_packet_priv;
-	unsigned int num = f->num_members;
+	unsigned int num = ACCESS_ONCE(f->num_members);
 	struct packet_sock *po;
 	unsigned int idx;
 
@@ -2253,7 +2239,7 @@ static int packet_snd(struct socket *sock,
 	int vnet_hdr_len;
 	struct packet_sock *po = pkt_sk(sk);
 	unsigned short gso_type = 0;
-	int hlen, tlen;
+	int hlen, tlen, linear;
 	int extra_len = 0;
 
 	/*
@@ -2347,7 +2333,9 @@ static int packet_snd(struct socket *sock,
 	err = -ENOBUFS;
 	hlen = LL_RESERVED_SPACE(dev);
 	tlen = dev->needed_tailroom;
-	skb = packet_alloc_skb(sk, hlen + tlen, hlen, len, vnet_hdr.hdr_len,
+	linear = vnet_hdr.hdr_len;
+	linear = max(linear, min_t(int, len, dev->hard_header_len));
+	skb = packet_alloc_skb(sk, hlen + tlen, hlen, len, linear,
 			       msg->msg_flags & MSG_DONTWAIT, &err);
 	if (skb == NULL)
 		goto out_unlock;
@@ -2565,7 +2553,7 @@ static int packet_bind_spkt(struct socket *sock, struct sockaddr *uaddr,
 			    int addr_len)
 {
 	struct sock *sk = sock->sk;
-	char name[15];
+	char name[sizeof(uaddr->sa_data) + 1];
 	struct net_device *dev;
 	int err = -ENODEV;
 
@@ -2575,7 +2563,11 @@ static int packet_bind_spkt(struct socket *sock, struct sockaddr *uaddr,
 
 	if (addr_len != sizeof(struct sockaddr))
 		return -EINVAL;
-	strlcpy(name, uaddr->sa_data, sizeof(name));
+	/* uaddr->sa_data comes from the userspace, it's not guaranteed to be
+	 * zero-terminated.
+	 */
+	memcpy(name, uaddr->sa_data, sizeof(uaddr->sa_data));
+	name[sizeof(uaddr->sa_data)] = 0;
 
 	dev = dev_get_by_name(sock_net(sk), name);
 	if (dev)
@@ -3421,6 +3413,7 @@ static int packet_notifier(struct notifier_block *this, unsigned long msg, void 
 				}
 				if (msg == NETDEV_UNREGISTER) {
 					packet_cached_dev_reset(po);
+					fanout_release(sk);
 					po->ifindex = -1;
 					if (po->prot_hook.dev)
 						dev_put(po->prot_hook.dev);
@@ -3681,8 +3674,8 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,
 		if (unlikely(req->tp_block_size & (PAGE_SIZE - 1)))
 			goto out;
 		if (po->tp_version >= TPACKET_V3 &&
-		    (int)(req->tp_block_size -
-			  BLK_PLUS_PRIV(req_u->req3.tp_sizeof_priv)) <= 0)
+		    req->tp_block_size <=
+			  BLK_PLUS_PRIV((u64)req_u->req3.tp_sizeof_priv))
 			goto out;
 		if (unlikely(req->tp_frame_size < po->tp_hdrlen +
 					po->tp_reserve))
@@ -3709,7 +3702,7 @@ static int packet_set_ring(struct sock *sk, union tpacket_req_u *req_u,
 		 */
 			if (!tx_ring)
 				init_prb_bdqc(po, rb, pg_vec, req_u, tx_ring);
-				break;
+			break;
 		default:
 			break;
 		}

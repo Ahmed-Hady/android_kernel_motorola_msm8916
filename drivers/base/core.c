@@ -857,6 +857,11 @@ static void cleanup_glue_dir(struct device *dev, struct kobject *glue_dir)
 	mutex_unlock(&gdp_mutex);
 }
 
+static void cleanup_device_parent(struct device *dev)
+{
+	cleanup_glue_dir(dev, dev->kobj.parent);
+}
+
 static int device_add_class_symlinks(struct device *dev)
 {
 	int error;
@@ -1161,8 +1166,7 @@ done:
 	kobject_del(&dev->kobj);
  Error:
 	cleanup_glue_dir(dev, glue_dir);
-	if (parent)
-		put_device(parent);
+	put_device(parent);
 name_error:
 	kfree(dev->p);
 	dev->p = NULL;
