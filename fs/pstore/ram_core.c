@@ -89,8 +89,6 @@ exit:
 	raw_spin_unlock_irqrestore(&buffer_lock, flags);
 }
 
-static DEFINE_RAW_SPINLOCK(buffer_lock);
-
 /* increase and wrap the start pointer, returning the old value */
 static size_t buffer_start_add_locked(struct persistent_ram_zone *prz, size_t a)
 {
@@ -132,9 +130,6 @@ static void buffer_size_add_locked(struct persistent_ram_zone *prz, size_t a)
 exit:
 	raw_spin_unlock_irqrestore(&buffer_lock, flags);
 }
-
-static size_t (*buffer_start_add)(struct persistent_ram_zone *, size_t) = buffer_start_add_atomic;
-static void (*buffer_size_add)(struct persistent_ram_zone *, size_t) = buffer_size_add_atomic;
 
 static void notrace persistent_ram_encode_rs8(struct persistent_ram_zone *prz,
 	uint8_t *data, size_t len, uint8_t *ecc)
@@ -574,9 +569,6 @@ static void *persistent_ram_iomap(phys_addr_t start, size_t size,
 			(unsigned long long)size, (unsigned long long)start);
 		return NULL;
 	}
-
-	buffer_start_add = buffer_start_add_locked;
-	buffer_size_add = buffer_size_add_locked;
 
 	if (memtype)
 		va = ioremap(start, size);
